@@ -32,7 +32,7 @@ export function createBrain(s) {
     stuck: 0,
     lastPos: { x: 0, z: 0 },
     crouchPeek: false,
-    smokeThrown: false,
+    nextThrow: 0,
     intent: { fwd: 0, side: 0, crouch: false, walk: false, jump: false },
     wantFire: false,
     wantUse: false,
@@ -52,8 +52,8 @@ export function planRound(world) {
   const rng = world.rng;
   world.plan = { site: rng.chance(0.5) ? 'A' : 'B', lane: 0 };
   world.plan.lane = rng.int(0, 2);
-  const atk = world.soldiers.filter((s) => s.team === 'atk' && !s.isPlayer);
-  const def = world.soldiers.filter((s) => s.team === 'def' && !s.isPlayer);
+  const atk = world.soldiers.filter((s) => s.team === 'atk' && s.brain);
+  const def = world.soldiers.filter((s) => s.team === 'def' && s.brain);
   atk.forEach((s, i) => {
     const b = s.brain;
     reset(b);
@@ -82,7 +82,7 @@ function reset(b) {
   b.target = null;
   b.lastSeen = null;
   b.alert = null;
-  b.smokeThrown = false;
+  b.nextThrow = 0;
   b.wantFire = false;
   b.wantUse = false;
 }
@@ -215,6 +215,10 @@ export function updateBot(world, s, dt) {
     }
   }
 
+  // A grenade first, when the moment suits the career's.
+  const lob = grenadeTarget(world, s, b);
+  if (lob && lobAt(world, s, b, lob.x, lob.z, dt)) return;
+
   // Engaging: stop, scope, settle the aim, fire.
   if (b.target && b.target.alive) {
     const t = b.target;
@@ -275,7 +279,8 @@ function doTask(world, s, b, dt) {
   // Heard something and nothing better to do: go and look.
   const memory = b.lastSeen && world.time - b.lastSeenAt < BOT.memory ? b.lastSeen : b.alert && world.time - b.alert.t < BOT.memory ? b.alert : null;
   const task = b.task;
-  if (memory && (!task || task.kind !== 'plant')) {
+  // The carrier does not chase noises: the charge goes to the site.
+  if (memory && !s.hasBomb) {
     if (task && task.kind === 'hold') {
       // Holders turn to face the noise but keep their post.
       aimToward(s, b, memory.x, (memory.y || 0) + 1.4, memory.z, dt);
@@ -324,19 +329,44 @@ function doTask(world, s, b, dt) {
       const lane = lanes[task.lane % lanes.length];
       setGoal(world, s, b, site.x + (s.hasBomb ? 0 : (world.rng.next() - 0.5) * 8), site.z + (s.hasBomb ? 0 : (world.rng.next() - 0.5) * 6), 0, lane.slice(0, -1));
     }
-    // A talc bomb on the way in, to cover the last open stretch.
-    if (s.smokes > 0 && !b.smokeThrown && Math.hypot(site.x - s.pos.x, site.z - s.pos.z) < 22) {
-      const off = aimToward(s, b, site.x, 4, site.z, dt);
-      if (off < 0.08) {
-        b.smokeThrown = true;
-        world.botThrow(s, 'smoke');
-      }
-      return;
+    // The Chef burns out the site's defenders on the way in.
+    if (s.role.id === 'chef' && s.grenades > 0 && Math.hypot(site.x - s.pos.x, site.z - s.pos.z) < 24) {
+      if (lobAt(world, s, b, site.x, site.z, dt)) return;
     }
     if (followPath(s, b, dt) && !s.hasBomb) {
       b.task = { kind: 'guard', x: s.pos.x, z: s.pos.z };
     }
   }
+}
+
+/**
+ * Lobs the career's grenade at (x, z): turns to it, raises the arc the distance needs (a throw
+ * flies at 17 m/s under 13 m/s² of gravity), and lets go once lined up. Returns true while busy.
+ */
+function lobAt(world, s, b, x, z, dt) {
+  if (world.time < b.nextThrow) return false;
+  const d = Math.hypot(x - s.pos.x, z - s.pos.z);
+  if (d < 6 || d > 30) return false;
+  const want = Math.atan2(-(x - s.pos.x), -(z - s.pos.z));
+  const delta = wrapAngle(want - s.yaw);
+  s.yaw = wrapAngle(s.yaw + clamp(delta, -BOT.turnSpeed * dt, BOT.turnSpeed * dt));
+  s.pitch = 0.5 * Math.asin(Math.min(1, (13 * d) / (17 * 17))) - 0.12;
+  s.scoped = false;
+  if (Math.abs(delta) < 0.06) {
+    world.botThrow(s);
+    b.nextThrow = world.time + 8;
+  }
+  return true;
+}
+
+/** Whether a bot should spend its grenade on what it just saw or heard, and where. */
+function grenadeTarget(world, s, b) {
+  if (s.grenades <= 0 || world.time < b.nextThrow) return null;
+  const kind = s.role.id;
+  // The Playboy charms a foe that is in view; the rest lob at what they remember or heard.
+  if (kind === 'playboy') return b.target ? b.target.pos : null;
+  if (b.target && kind !== 'teacher') return null;
+  return b.lastSeen && world.time - b.lastSeenAt < 3 ? b.lastSeen : b.alert && world.time - b.alert.t < 3 ? b.alert : null;
 }
 
 /** What a bot buys when the freeze starts, by its money. */
@@ -345,6 +375,6 @@ export function botBuy(world, s) {
   if (m >= 4200 + 650 + 300 && world.rng.chance(0.5)) world.buy(s, 'heavy');
   else if (m >= 1900 + 650) world.buy(s, 'rapid');
   if (s.money >= 650 && s.armor < 50) world.buy(s, 'vest');
-  if (s.money >= 300 && s.team === 'atk' && world.rng.chance(0.6)) world.buy(s, 'smoke');
-  if (s.money >= 250 && world.rng.chance(0.4)) world.buy(s, 'flash');
+  if (s.money >= 400 && world.rng.chance(0.7)) world.buy(s, 'grenade');
+  if (s.money >= 1200 && world.rng.chance(0.4)) world.buy(s, 'grenade');
 }

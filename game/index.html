@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office Hours: a sniper standoff at Sundown Plaza</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" hidden>
+  <div id="topbar">
+    <div class="team atk"><span class="tname">GENTS</span><b id="score-atk">0</b><span class="pips" id="pips-atk"></span></div>
+    <div id="clock"><b id="timer">1:55</b><span id="phase">BUY</span></div>
+    <div class="team def"><span class="pips" id="pips-def"></span><b id="score-def">0</b><span class="tname">SHIFT</span></div>
+  </div>
+  <canvas id="minimap" width="240" height="184"></canvas>
+  <div id="money">$<b id="money-value">0</b></div>
+  <ul id="feed"></ul>
+  <div id="vitals">
+    <div class="vital"><span class="label">HP</span><b id="hp">100</b><i class="bar"><i id="hp-bar"></i></i></div>
+    <div class="vital"><span class="label">ARMOR</span><b id="armor">0</b><i class="bar"><i id="armor-bar"></i></i></div>
+  </div>
+  <div id="arms">
+    <div id="gun-name">Gold Nib · Standard</div>
+    <div id="ammo"><b id="mag">5</b><span id="reserve">/ 20</span></div>
+    <div id="gear"><span id="grenade-name">Grenade</span> × <span id="grenades">0</span> · <kbd>G</kbd></div>
+  </div>
+  <div id="status"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="scope" hidden><div class="lens"></div></div>
+  <div id="damage"></div>
+  <div id="flashout"></div>
+  <div id="hint"></div>
+  <div id="progress" hidden><span id="progress-label">Planting</span><i class="bar"><i id="progress-bar"></i></i></div>
+  <div id="banner" hidden><b id="banner-title"></b><span id="banner-sub"></span></div>
+  <div id="spectate" hidden></div>
+</div>
+
+<div id="title" class="overlay">
+  <section class="panel wide">
+    <p class="kicker">A three.js sniper standoff · 3 v 3 · first to 4 rounds</p>
+    <h1>Office Hours</h1>
+    <p class="lede">Sundown Plaza, after hours. <b class="atk-ink">The Gentlemen</b> come to plant a glitter charge; <b class="def-ink">the Night Shift</b> clock in to stop them. Every career brings its own rifle, and its own way of ending a rivalry.</p>
+    <div class="teams">
+      <div class="side" data-team="atk"><h2 class="atk-ink">The Gentlemen <small>attack</small></h2><div class="roles" id="roles-atk"></div></div>
+      <div class="side" data-team="def"><h2 class="def-ink">The Night Shift <small>defend</small></h2><div class="roles" id="roles-def"></div></div>
+    </div>
+    <button id="play" type="button">Clock in</button>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</li>
+      <li><kbd>Mouse</kbd> look · <kbd>Left</kbd> fire · <kbd>Right</kbd> scope</li>
+      <li><kbd>Ctrl</kbd> crouch · <kbd>Shift</kbd> walk · <kbd>Space</kbd> jump</li>
+      <li><kbd>R</kbd> reload · <kbd>E</kbd> plant / defuse</li>
+      <li><kbd>B</kbd> buy · <kbd>G</kbd> throw your career's grenade · <kbd>Tab</kbd> scores · <kbd>M</kbd> sound</li>
+    </ul>
+  </section>
+</div>
+
+<div id="buy" class="overlay" hidden>
+  <section class="panel">
+    <h2>Buy · <span id="buy-money">$0</span></h2>
+    <p class="muted" id="buy-note">Buying closes when the round goes live.</p>
+    <div id="buy-list"></div>
+    <p class="muted"><kbd>B</kbd> or <kbd>Esc</kbd> to close</p>
+  </section>
+</div>
+
+<div id="board" class="overlay clear" hidden>
+  <section class="panel wide"><table id="board-table"></table></section>
+</div>
+
+<div id="end" class="overlay" hidden>
+  <section class="panel wide">
+    <p class="kicker" id="end-kicker">Match over</p>
+    <h1 id="end-title">The Night Shift win</h1>
+    <table id="end-table"></table>
+    <button id="again" type="button">Play again</button>
+  </section>
+</div>
+
+<div id="pause" class="overlay" hidden>
+  <section class="panel"><h2>Paused</h2><p class="muted">Click to return to the plaza.</p></section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

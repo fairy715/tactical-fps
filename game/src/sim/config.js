@@ -54,24 +54,28 @@ export const MODELS = {
 
 export const MODEL_ORDER = ['standard', 'rapid', 'heavy'];
 
-/** Gear. A soldier carries at most one smoke and two flashes; each career throws its own version. */
 export const GEAR = {
   vest: { id: 'vest', name: 'Padded blazer (armour)', price: 650 },
-  smoke: { id: 'smoke', name: 'Smoke', price: 300, max: 1 },
-  flash: { id: 'flash', name: 'Flash', price: 250, max: 2 },
 };
 
-/** What each career throws: [smoke, flash], as the buy menu and the kill feed name them. */
-export const THROWABLES = {
-  boss: ['Cigar-box smoke', 'Camera-flash press badge'],
-  playboy: ['Cologne cloud', 'Disco-ball flash'],
-  chef: ['Flour sack', 'Flambe pan'],
-  teacher: ['Chalk-dust eraser', 'Overhead-projector flash'],
-  office: ['Toner cartridge', 'Photocopier flash'],
-  nurse: ['Talc bottle', 'Penlight flash'],
+/**
+ * Each career throws its own grenade, and only its own: the Teacher's chalk eraser smokes a
+ * sightline shut, the Office Lady's photocopier flash blinds, the Nurse's sedative vial leaves a
+ * gas that slows and unscopes, the Boss's money bag explodes, the Playboy's rose bouquet charms
+ * enemies so they cannot shoot, and the Chef's flaming pan sets the ground alight. Two at most.
+ */
+export const GRENADES = {
+  teacher: { kind: 'smoke', name: 'Chalk eraser', note: 'A cloud of chalk dust that blocks every sightline', price: 300 },
+  office: { kind: 'flash', name: 'Photocopier flash', note: 'Blinds whoever is looking at it', price: 250 },
+  nurse: { kind: 'slow', name: 'Sedative vial', note: 'Drowsy gas: enemies inside crawl and cannot scope', price: 300 },
+  boss: { kind: 'frag', name: 'Money bag', note: 'Bursts in a hail of coins: damage around it', price: 350 },
+  playboy: { kind: 'charm', name: 'Rose bouquet', note: 'Charms enemies near it: no shooting for a moment', price: 300 },
+  chef: { kind: 'fire', name: 'Flaming pan', note: 'Sets the ground alight: burns whoever stands in it', price: 400 },
 };
 
-export const BUY_LIST = ['standard', 'rapid', 'heavy', 'vest', 'smoke', 'flash'];
+export const GRENADE_MAX = 2;
+
+export const BUY_LIST = ['standard', 'rapid', 'heavy', 'vest', 'grenade'];
 
 export const GRENADE = {
   throwSpeed: 17,
@@ -83,6 +87,16 @@ export const GRENADE = {
   smokeGrow: 1.3,
   flashRadius: 22,
   flashBlind: 2.8,
+  fragRadius: 7,
+  fragDamage: 105,
+  fireRadius: 3.6,
+  fireLife: 7,
+  fireDps: 22,
+  slowRadius: 4.6,
+  slowLife: 8,
+  slowMul: 0.4,
+  charmRadius: 8,
+  charmTime: 2.6,
 };
 
 export const ECONOMY = {

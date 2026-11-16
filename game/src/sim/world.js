@@ -2,7 +2,7 @@
 // the score and the economy, stepped at a fixed rate. Commands come in (the player's from the
 // keyboard and mouse, each bot's from its brain), events come out (shots, hits, kills, plants,
 // round ends) for the renderer, the HUD and the sound to react to. Nothing here draws.
-import { ECONOMY, GEAR, MODELS, ROLE_ORDER, ROUND, TEAMS } from './config.js';
+import { ECONOMY, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLE_ORDER, ROUND, TEAMS } from './config.js';
 import { createSoldier, eyePos, moveSoldier, respawn } from './actors.js';
 import { createBrain, botBuy, planRound, updateBot } from './bots.js';
 import { applyHit, killSoldier, traceShot } from './combat.js';
@@ -41,7 +41,8 @@ export function createWorld(options) {
     routes: ROUTES,
     economy: ECONOMY,
     buy: (s, item) => buy(world, s, item),
-    botThrow: (s, kind) => throwGrenade(world, s, kind),
+    zones: [],
+    botThrow: (s) => throwGrenade(world, s),
     dropBomb: (s) => dropBomb(world, s),
   };
   let id = 0;
@@ -65,6 +66,7 @@ function startRound(world) {
   world.phaseTime = ROUND.freeze;
   world.grenades = [];
   world.smokes = [];
+  world.zones = [];
   for (const team of ['atk', 'def']) {
     const squad = world.soldiers.filter((s) => s.team === team);
     squad.forEach((s, i) => {
@@ -94,18 +96,15 @@ export function buy(world, s, item) {
     world.events.push({ type: 'buy', id: s.id, item });
     return null;
   }
-  const gear = GEAR[item];
+  const gear = item === 'grenade' ? GRENADES[s.role.id] : GEAR[item];
   if (!gear) return 'Unknown item';
   if (s.money < gear.price) return 'Not enough money';
   if (item === 'vest') {
     if (s.armor >= 100) return 'Already wearing one';
     s.armor = 100;
-  } else if (item === 'smoke') {
-    if (s.smokes >= gear.max) return 'Carrying the most you can';
-    s.smokes += 1;
-  } else if (item === 'flash') {
-    if (s.flashes >= gear.max) return 'Carrying the most you can';
-    s.flashes += 1;
+  } else {
+    if (s.grenades >= GRENADE_MAX) return 'Carrying the most you can';
+    s.grenades += 1;
   }
   s.money -= gear.price;
   world.events.push({ type: 'buy', id: s.id, item });
@@ -128,13 +127,18 @@ function applyCommand(world, s, cmd, dt) {
   if (tickGun(gun, dt) === 'reloaded') world.events.push({ type: 'reloaded', id: s.id });
   settleRecoil(s, dt);
   s.blind = Math.max(0, s.blind - dt);
+  s.slowed = Math.max(0, s.slowed - dt);
+  s.charmed = Math.max(0, s.charmed - dt);
+  s.burning = Math.max(0, s.burning - dt);
   if (frozen) return;
   if (cmd.reload && startReload(gun)) {
     s.scoped = false;
     world.events.push({ type: 'reload', id: s.id });
   }
   if (cmd.scope !== undefined) s.scoped = cmd.scope && gun.reloading <= 0;
-  if (cmd.fire) {
+  // Sedated soldiers cannot steady a scope; charmed ones cannot bring themselves to shoot.
+  if (s.slowed > 0 || s.charmed > 0) s.scoped = false;
+  if (cmd.fire && s.charmed <= 0) {
     if (gun.mag <= 0 && gun.reloading <= 0) {
       if (startReload(gun)) world.events.push({ type: 'reload', id: s.id });
       else if (s.isPlayer && cmd.firePressed) world.events.push({ type: 'dry', id: s.id });
@@ -148,8 +152,7 @@ function applyCommand(world, s, cmd, dt) {
       if (gun.def.rpm < 60 && s.isPlayer) s.scoped = false;
     }
   }
-  if (cmd.smoke) throwGrenade(world, s, 'smoke');
-  if (cmd.flash) throwGrenade(world, s, 'flash');
+  if (cmd.grenade) throwGrenade(world, s);
   useAction(world, s, cmd.use, dt);
 }
 

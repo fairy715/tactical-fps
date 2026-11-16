@@ -1,7 +1,7 @@
 // Soldiers: the player and the bots are the same kind of object, moved by the same physics from an
 // intent (where to go, crouch, walk, jump, scope). Movement accelerates, slides along walls,
 // climbs stairs and falls off ledges; a crouched, walking or scoped soldier is slower and steadier.
-import { HITBOX, MODELS, MOVE, ROLES } from './config.js';
+import { GRENADE, HITBOX, MODELS, MOVE, ROLES } from './config.js';
 import { floorAt, slideCircle } from './collision.js';
 import { createGun } from './weapons.js';
 
@@ -28,9 +28,11 @@ export function createSoldier(id, team, roleId, isPlayer) {
     alive: true,
     money: 0,
     gun: createGun(MODELS.standard),
-    smokes: 0,
-    flashes: 0,
-    blind: 0,
+    grenades: 0, // the career's own grenade, two at most
+    blind: 0, // seconds of photocopier flash left
+    slowed: 0, // seconds of sedative left
+    charmed: 0, // seconds of rose-bouquet charm left: no shooting
+    burning: 0,
     hasBomb: false,
     kills: 0,
     deaths: 0,
@@ -64,12 +66,11 @@ export function respawn(s, x, z, yaw, survived) {
   s.killedBy = null;
   s.roundKills = 0;
   s.hasBomb = false;
-  s.blind = 0;
+  s.blind = s.slowed = s.charmed = s.burning = 0;
   if (!survived) {
     s.gun = createGun(MODELS.standard);
     s.armor = 0;
-    s.smokes = 0;
-    s.flashes = 0;
+    s.grenades = 0;
   } else {
     s.gun.reloading = 0;
     s.gun.cooldown = 0;
@@ -106,6 +107,7 @@ export function moveSoldier(s, intent, dt) {
   if (intent.crouch) top *= MOVE.crouchMul;
   else if (intent.walk) top *= MOVE.walkMul;
   if (s.scoped) top *= MOVE.scopedMul;
+  if (s.slowed > 0) top *= GRENADE.slowMul;
   if (s.action) top = 0;
 
   const sin = Math.sin(s.yaw);
