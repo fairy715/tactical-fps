@@ -3,10 +3,10 @@
 // rate) and draws each frame from your eyes, or a teammate's once you are out.
 import { BUY_LIST, TICK } from './sim/config.js';
 import { createWorld, stepWorld } from './sim/world.js';
-import { createView } from './render/view.js';
-import { createHud } from './ui/hud.js';
 import { createInput } from './input.js';
 import { chargeBeep, playEvents, toggleMute, unlockAudio } from './audio.js';
+import { createHud } from './ui/hud.js';
+import { createView } from './render/view.js';
 import { prepareShot } from './shots.js';
 
 const host = document.getElementById('game');

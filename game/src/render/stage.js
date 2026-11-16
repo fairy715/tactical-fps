@@ -35,6 +35,9 @@ export function createStage(host) {
   const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 500);
   camera.rotation.order = 'YXZ';
 
+  const env = studioEnvironment(renderer);
+  scene.environment = env;
+  scene.environmentIntensity = 0.7;
   addLights(scene);
   addGround(scene);
   addSolids(scene);
@@ -52,7 +55,30 @@ export function createStage(host) {
   }
   resize();
   window.addEventListener('resize', resize);
-  return { renderer, scene, camera, resize };
+  return { renderer, scene, camera, resize, env };
+}
+
+/**
+ * A reflection map for the rifles' metal and lacquer: the dusk sky on a dome, a dark plaza floor
+ * and two warm soft-box panels, pre-filtered once so chrome and gold catch real highlights.
+ */
+function studioEnvironment(renderer) {
+  const pm = new THREE.PMREMGenerator(renderer);
+  const room = new THREE.Scene();
+  room.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ map: T.skyGradient(), side: THREE.BackSide })));
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(9.5, 24), new THREE.MeshBasicMaterial({ color: '#3a2f2a' }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2;
+  room.add(floor);
+  for (const [x, z, c] of [[-6, 3, '#fff1d6'], [5, -5, '#ffd0a0']]) {
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+    panel.position.set(x, 4, z);
+    panel.lookAt(0, 0, 0);
+    room.add(panel);
+  }
+  const env = pm.fromScene(room, 0.02).texture;
+  pm.dispose();
+  return env;
 }
 
 function addLights(scene) {

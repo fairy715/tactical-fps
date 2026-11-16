@@ -26,6 +26,7 @@ export function createView(host, world) {
 
   // First-person rifle: its own scene and camera, lit like the plaza.
   const vmScene = new THREE.Scene();
+  vmScene.environment = stage.env;
   vmScene.add(new THREE.HemisphereLight('#ffe2c2', '#4a3d5e', 1.6));
   const key = new THREE.DirectionalLight('#ffc48a', 1.8);
   key.position.set(-1, 1, 1);
@@ -41,10 +42,11 @@ export function createView(host, world) {
   function setViewGun(roleId) {
     if (vmRole === roleId) return;
     if (vmGun) vmHolder.remove(vmGun);
-    vmGun = toonify(buildGun(roleId), 0.005);
-    vmGun.position.set(0.26, -0.27, -0.62);
-    vmGun.rotation.y = -0.05;
-    vmGun.scale.setScalar(0.85);
+    // No ink on the first-person rifle: up close it is shaded as real metal, wood and polymer.
+    vmGun = buildGun(roleId);
+    // Held low on the right and angled in, so the rifle's left flank, bolt and scope read.
+    vmGun.position.set(0.22, -0.25, -0.58);
+    vmGun.rotation.set(0.03, 0.17, 0.1);
     vmHolder.add(vmGun);
     vmRole = roleId;
   }
@@ -121,17 +123,27 @@ export function createView(host, world) {
    * The title's line-up: the six careers on the plaza before the monument, the Gentlemen on the
    * left and the Night Shift on the right, idling, each holding its rifle.
    */
+  // The title screen's team photo: the Night Shift in front, the Gentlemen on a stone riser
+  // behind them so all six faces show, framed in the half of the screen the title panel leaves.
+  const PHOTO = { x: 5, z: 12.2, gap: 1.25, rise: 0.8 };
+  const riser = new THREE.Mesh(new THREE.BoxGeometry(4.6, PHOTO.rise, 1.3), new THREE.MeshStandardMaterial({ color: '#b9ad9b' }));
+  riser.position.set(PHOTO.x, PHOTO.rise / 2, PHOTO.z - 0.75);
+  riser.receiveShadow = riser.castShadow = true;
+  toonify(riser, 0.02);
+  riser.visible = false;
+  scene.add(riser);
+
   function renderLineup(time) {
     finishers.update(time);
+    riser.visible = true;
     world.soldiers.forEach((s, i) => {
       const fig = figures[i];
-      // Gentlemen in the back row, Night Shift in front, staggered so every face shows.
       const back = i < 3;
       const col = (i % 3) - 1;
       fig.root.visible = true;
-      fig.root.position.set(4.3 + col * 1.4 + (back ? 0.7 : 0), 0, back ? 11.2 : 13.2);
-      // Turned to face the camera.
-      fig.root.rotation.set(0, Math.PI - 0.5 - col * 0.06, 0);
+      fig.root.position.set(PHOTO.x + col * PHOTO.gap, back ? PHOTO.rise : 0, back ? PHOTO.z - 0.75 : PHOTO.z + 0.55);
+      // Facing the camera, each turned a little toward the middle of the photo.
+      fig.root.rotation.set(0, Math.PI - col * 0.22, 0);
       const { rig } = fig;
       rig.body.position.set(0, Math.abs(Math.sin(time * 2 + i)) * 0.03, 0);
       rig.body.rotation.set(0, 0, 0);
@@ -139,17 +151,18 @@ export function createView(host, world) {
       rig.legL.rotation.x = rig.legR.rotation.x = 0;
       rig.legL.scale.y = rig.legR.scale.y = 1;
       rig.torso.rotation.set(0, Math.sin(time * 0.8 + i) * 0.12, 0);
-      rig.head.rotation.set(-0.08, Math.sin(time * 0.6 + i * 2) * 0.2, 0);
-      // Rifle held across the chest, muzzle up.
-      rig.armL.rotation.set(-1.0, 0, 0.5);
-      rig.armR.rotation.set(-0.7, 0, -0.3);
-      fig.gun.rotation.set(0.9, 0.5, 0.3);
+      rig.head.rotation.set(-0.05, Math.sin(time * 0.6 + i * 2) * 0.2, 0);
+      // Order arms: rifle stood upright at the right side, muzzle up, so it never hides a face.
+      rig.armL.rotation.set(-0.15, 0, 0.12);
+      rig.armR.rotation.set(-0.25, 0, -0.18);
+      fig.gun.position.set(0.36, -0.12, -0.1);
+      fig.gun.rotation.set(Math.PI / 2 - 0.08, 0, -0.06);
       fig.setFace(i % 2 ? 'normal' : 'love');
     });
     effects.update(world, 0.016, time);
-    // Framed so the line-up fills the right half, clear of the title panel on the left.
-    camera.position.set(1.5, 1.4, 17.5);
-    camera.rotation.set(-0.04, -0.25, 0);
+    // The camera looks a little left of the group so the photo sits right of the title panel.
+    camera.position.set(PHOTO.x, 1.7, PHOTO.z + 7.4);
+    camera.rotation.set(-0.04, 0.31, 0);
     camera.fov = BASE_FOV * 0.62;
     camera.updateProjectionMatrix();
     renderer.clear();
@@ -160,7 +173,11 @@ export function createView(host, world) {
   function rebind(next) {
     world = next;
     finishers.clear();
-    for (const fig of figures) fig.root.visible = true;
+    riser.visible = false;
+    for (const fig of figures) {
+      fig.root.visible = true;
+      fig.gun.position.set(0.05, 0.16, -0.36);
+    }
   }
 
   return { render, renderLineup, react, rebind, renderer, camera };

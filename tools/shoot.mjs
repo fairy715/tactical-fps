@@ -1,6 +1,6 @@
 // Takes the screenshots: serves game/, opens each scene of shots.json (?shot=...) in headless
 // Chromium at 1280 x 720 and saves it as a JPEG under screenshots/. A page error fails the run.
-//   node tools/shoot.mjs [out dir, default screenshots]
+//   node tools/shoot.mjs [out dir, default screenshots] [shot list, default shots.json]
 import { createServer } from 'node:http';
 import { createReadStream, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
@@ -11,7 +11,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const root = fileURLToPath(new URL('..', import.meta.url));
 const game = join(root, 'game');
 const outDir = resolve(root, process.argv[2] || 'screenshots');
-const shots = JSON.parse(readFileSync(join(root, 'shots.json'), 'utf8'));
+const shots = JSON.parse(readFileSync(resolve(root, process.argv[3] || 'shots.json'), 'utf8'));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 
 const server = createServer((req, res) => {

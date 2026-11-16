@@ -167,6 +167,21 @@ function faceTexture(roleId, expr) {
 
 // ---- outfits ---------------------------------------------------------------------------------
 
+/**
+ * Each career's build, so the six read apart at a glance: height (the whole figure), and the
+ * torso's width and depth. The Boss is broad with a paunch, the Playboy tall and slim, the Chef
+ * round; the Office Lady stands tall in heels, the Nurse is petite. Builds are looks only: every
+ * soldier has the same hitbox.
+ */
+const BUILD = {
+  boss: { height: 1.0, width: 1.22, depth: 1.25 },
+  playboy: { height: 1.07, width: 0.88, depth: 0.9 },
+  chef: { height: 0.97, width: 1.28, depth: 1.4 },
+  teacher: { height: 0.98, width: 0.95, depth: 0.95 },
+  office: { height: 1.06, width: 0.9, depth: 0.92 },
+  nurse: { height: 0.88, width: 0.88, depth: 0.9 },
+};
+
 const OUTFIT = {
   boss: { legs: '#22252e', shoes: '#141418', torso: '#2b2f3a', arms: '#2b2f3a' },
   playboy: { legs: '#f1ece2', shoes: '#b07a4f', torso: '#f4f1ea', arms: '#f4f1ea' },
@@ -182,18 +197,29 @@ function dress(roleId, role, torso, head) {
     torso.add(mesh(block(0.1, 0.32, 0.02), '#f2efe8', 0, 0.06, -0.15));
     torso.add(mesh(block(0.06, 0.3, 0.025), role.trim, 0, 0.04, -0.158));
     head.add(mesh(new THREE.SphereGeometry(0.205, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), hair, 0, 0.02, 0.01));
+    // A fedora with a gold band.
+    head.add(mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.025, 24), '#1d1f26', 0, 0.15, 0));
+    head.add(mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.2, 20), '#1d1f26', 0, 0.26, 0));
+    head.add(mesh(new THREE.CylinderGeometry(0.202, 0.202, 0.045, 20), role.trim, 0, 0.18, 0));
   } else if (roleId === 'playboy') {
     torso.add(mesh(block(0.16, 0.28, 0.02), '#f08bb0', 0, 0.08, -0.15));
     const pin = new THREE.Mesh(ball(0.04), toon('#e2385d', { emissive: '#3a0510' }));
     pin.position.set(-0.13, 0.15, -0.155);
     torso.add(pin);
+    // A heavy gold chain at the open collar.
+    const chain = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 24), toon('#e5b53a', { emissive: '#3a2a05' }));
+    chain.position.set(0, 0.22, -0.06);
+    chain.rotation.x = 1.2;
+    torso.add(chain);
     head.add(mesh(block(0.3, 0.07, 0.04), '#0b0b0d', 0, 0.03, -0.19));
-    const quiff = mesh(ball(0.12), hair, 0, 0.17, -0.08);
-    quiff.scale.set(1.3, 0.7, 1);
+    const quiff = mesh(ball(0.13), hair, 0, 0.2, -0.08);
+    quiff.scale.set(1.3, 0.9, 1.1);
     head.add(quiff, mesh(new THREE.SphereGeometry(0.205, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), hair, 0, 0.02, 0.01));
   } else if (roleId === 'chef') {
     torso.add(mesh(block(0.36, 0.08, 0.3), '#d63a35', 0, 0.22, 0));
     for (const y of [0.1, -0.02, -0.14]) torso.add(mesh(ball(0.02), '#333333', 0.07, y, -0.15));
+    // A white apron down to the knees.
+    torso.add(mesh(block(0.34, 0.62, 0.02), '#f4f1ea', 0, -0.32, -0.16));
     head.add(mesh(new THREE.CylinderGeometry(0.19, 0.17, 0.3, 16), '#ffffff', 0, 0.3, 0));
     const puff = mesh(ball(0.22), '#ffffff', 0, 0.48, 0);
     puff.scale.y = 0.75;
@@ -210,8 +236,12 @@ function dress(roleId, role, torso, head) {
   } else if (roleId === 'office') {
     for (const x of [-0.1, 0.1]) torso.add(mesh(block(0.035, 0.52, 0.31), '#2a3a63', x, 0, 0));
     torso.add(mesh(block(0.08, 0.1, 0.02), '#3a7bd5', -0.03, -0.06, -0.16), mesh(block(0.012, 0.2, 0.012), '#c33333', -0.03, 0.08, -0.155));
-    const bob = mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), hair, 0, 0.0, 0.015);
-    head.add(bob);
+    // A sleek bob: a crown cap plus sides and back that fall to the jaw, open at the face.
+    const open = 1.0;
+    head.add(
+      mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.36), hair, 0, 0.0, 0.015),
+      mesh(new THREE.SphereGeometry(0.222, 18, 12, Math.PI * 1.5 + open, Math.PI * 2 - open * 2, 0, Math.PI * 0.64), hair, 0, 0.0, 0.015),
+    );
   } else if (roleId === 'nurse') {
     const hat = mesh(block(0.24, 0.08, 0.14), '#ffffff', 0, 0.2, -0.02);
     hat.add(mesh(block(0.06, 0.018, 0.012), '#e2384d', 0, 0, -0.075), mesh(block(0.018, 0.06, 0.012), '#e2384d', 0, 0, -0.075));
@@ -290,6 +320,16 @@ export function buildSoldier(role, team) {
   torso.add(gun);
 
   dress(role.id, role, torso, head);
+  // The career's build: height for the whole figure, girth for the torso (the head keeps its size).
+  const build = BUILD[role.id];
+  body.scale.setScalar(build.height);
+  torso.scale.set(build.width, 1, 0.72 * build.depth);
+  // What hangs from the torso keeps its own shape: undo the torso's girth on the head, arms and rifle.
+  for (const part of [head, armL, armR, gun]) part.scale.set(1 / build.width, 1, 1 / (0.72 * build.depth));
+  if (role.id === 'office') {
+    // Heels: a raised back to each shoe.
+    for (const leg of [legL, legR]) leg.add(mesh(block(0.05, 0.1, 0.05), '#1a1a1a', 0, -0.76, 0.06));
+  }
   toonify(root, 0.014);
   root.userData.walk = 0;
   let current = 'normal';

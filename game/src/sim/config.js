@@ -140,7 +140,8 @@ export const ROUND = {
  * The closing ring, so nobody can sit out a round: `delay` seconds after the drop zone is marked
  * (or `fallback` seconds into the round if nobody has fallen, centred on the plaza), a ring closes
  * on it from `startRadius` to `endRadius` over `shrink` seconds; outside it you lose `dps` health
- * a second, whichever side you are on.
+ * a second, whichever side you are on. When the second drop zone appears the ring holds for
+ * `pause` seconds, then recentres between the two zones and keeps both inside it.
  */
 export const RING = { delay: 30, fallback: 60, pause: 15, startRadius: 80, endRadius: 9, shrink: 40, dps: 8 };
 

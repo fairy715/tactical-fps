@@ -53,7 +53,8 @@ export function outline(mesh, width = 0.018) {
 
 /**
  * Converts every standard material under root to toon shading and outlines each solid mesh.
- * Transparent parts (glass, the syringe barrel) keep their material and get no outline.
+ * Transparent parts (glass, the syringe barrel) keep their material and get no outline; meshes
+ * marked userData.pbr (the rifles) keep their physical metal and wood but get the outline.
  */
 export function toonify(root, width) {
   const meshes = [];
@@ -63,7 +64,8 @@ export function toonify(root, width) {
   for (const m of meshes) {
     const src = m.material;
     if (src.transparent) continue;
-    if (src.isMeshStandardMaterial) m.material = toon(`#${src.color.getHexString()}`, { map: src.map, emissive: src.emissive && src.emissive.getHex() ? `#${src.emissive.getHexString()}` : null });
+    // Rifles keep their metal and wood (physically shaded); everything else goes toon.
+    if (src.isMeshStandardMaterial && !m.userData.pbr) m.material = toon(`#${src.color.getHexString()}`, { map: src.map, emissive: src.emissive && src.emissive.getHex() ? `#${src.emissive.getHexString()}` : null });
     outline(m, width);
   }
   return root;
