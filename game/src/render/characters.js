@@ -1,6 +1,6 @@
 // The six careers as cartoon figures: big round heads with drawn faces, rounded bodies and limbs,
 // toon shading and ink outlines. The Teacher wears a cardigan, pencil skirt and glasses; the Office
-// Lady a shirt, suspender trousers and an ID badge; the Nurse scrubs and a cap; the Boss a dark
+// Lady a white blouse, black pencil skirt, heels, long permed hair and an ID badge; the Nurse scrubs and a cap; the Boss a dark
 // suit and gold tie; the Playboy a white suit, shades and a heart pin; the Chef whites and a toque.
 // Faces change with what happens: dizzy when stunned, heart eyes when charmed, and the finishing
 // gag's own look when they fall. Each carries its career's rifle and its team's armband.
@@ -187,7 +187,7 @@ const OUTFIT = {
   playboy: { legs: '#f1ece2', shoes: '#b07a4f', torso: '#f4f1ea', arms: '#f4f1ea' },
   chef: { legs: '#2f2f35', shoes: '#141418', torso: '#fafafa', arms: '#fafafa' },
   teacher: { legs: '#4a3b40', shoes: '#7a2f25', torso: '#3e7a55', arms: '#3e7a55' },
-  office: { legs: '#2a3a63', shoes: '#1a1a1a', torso: '#f4f6fa', arms: '#f4f6fa' },
+  office: { legs: '#d9a88f', shoes: '#1a1a1a', torso: '#f7f8fb', arms: '#f7f8fb' },
   nurse: { legs: '#f0e3d8', shoes: '#f7f7f7', torso: '#dff1f5', arms: '#dff1f5' },
 };
 
@@ -234,14 +234,23 @@ function dress(roleId, role, torso, head) {
     }
     head.add(mesh(block(0.05, 0.01, 0.01), '#1d1d1f', 0, 0.01, -0.2));
   } else if (roleId === 'office') {
-    for (const x of [-0.1, 0.1]) torso.add(mesh(block(0.035, 0.52, 0.31), '#2a3a63', x, 0, 0));
+    // A white blouse: pointed collar, a row of pearl buttons, and the ID badge on its lanyard.
+    for (const x of [-0.06, 0.06]) {
+      const tab = mesh(block(0.09, 0.05, 0.02), '#ffffff', x, 0.27, -0.13);
+      tab.rotation.z = x > 0 ? 0.5 : -0.5;
+      torso.add(tab);
+    }
+    for (const y of [0.18, 0.08, -0.02, -0.12]) torso.add(mesh(ball(0.014), '#e9e3d6', 0, y, -0.152));
     torso.add(mesh(block(0.08, 0.1, 0.02), '#3a7bd5', -0.03, -0.06, -0.16), mesh(block(0.012, 0.2, 0.012), '#c33333', -0.03, 0.08, -0.155));
-    // A sleek bob: a crown cap plus sides and back that fall to the jaw, open at the face.
-    const open = 1.0;
-    head.add(
-      mesh(new THREE.SphereGeometry(0.22, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.36), hair, 0, 0.0, 0.015),
-      mesh(new THREE.SphereGeometry(0.222, 18, 12, Math.PI * 1.5 + open, Math.PI * 2 - open * 2, 0, Math.PI * 0.64), hair, 0, 0.0, 0.015),
-    );
+    // Long permed hair: a crown cap, then loose curls that fall past the shoulders, open at the face.
+    head.add(mesh(new THREE.SphereGeometry(0.222, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.4), hair, 0, 0.0, 0.015));
+    for (let a = -2.2; a <= 2.21; a += 0.55) {
+      for (let k = 0; k < 4; k++) {
+        const r = 0.2 + k * 0.018;
+        const curl = mesh(ball(0.075 - k * 0.006), hair, Math.sin(a) * r + (k % 2 ? 0.012 : -0.012), 0.04 - k * 0.12, Math.cos(a) * r);
+        head.add(curl);
+      }
+    }
   } else if (roleId === 'nurse') {
     const hat = mesh(block(0.24, 0.08, 0.14), '#ffffff', 0, 0.2, -0.02);
     hat.add(mesh(block(0.06, 0.018, 0.012), '#e2384d', 0, 0, -0.075), mesh(block(0.018, 0.06, 0.012), '#e2384d', 0, 0, -0.075));
@@ -287,6 +296,10 @@ export function buildSoldier(role, team) {
   let skirt = null;
   if (role.id === 'teacher') {
     skirt = mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.52, 18), '#3b3d48', 0, -0.25, 0);
+    hips.add(skirt);
+  } else if (role.id === 'office') {
+    // A black pencil skirt, tight to just above the knee.
+    skirt = mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.42, 18), '#1d1e26', 0, -0.2, 0);
     hips.add(skirt);
   } else if (role.id === 'nurse') {
     skirt = mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.44, 18), role.suit, 0, -0.2, 0);

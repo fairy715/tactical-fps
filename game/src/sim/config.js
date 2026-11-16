@@ -18,7 +18,7 @@ export const ROLES = {
   playboy: { id: 'playboy', team: 'atk', name: 'The Playboy', gun: 'Heartbreaker', finisher: 'swoon', suit: '#f4f1ea', trim: '#e2385d', skin: '#d9a07a', hair: '#6b4428' },
   chef: { id: 'chef', team: 'atk', name: 'The Chef', gun: 'Pepper Mill', finisher: 'served', suit: '#fafafa', trim: '#2f2f2f', skin: '#c98d66', hair: '#1f1a17' },
   teacher: { id: 'teacher', team: 'def', name: 'The Teacher', gun: 'Pointer', finisher: 'graded', suit: '#3e6b4f', trim: '#f2e9d0', skin: '#e9be9b', hair: '#5a3825' },
-  office: { id: 'office', team: 'def', name: 'The Office Lady', gun: 'Stapler', finisher: 'overtime', suit: '#353c4a', trim: '#e9edf2', skin: '#f0c8a8', hair: '#1c1715' },
+  office: { id: 'office', team: 'def', name: 'The Office Lady', gun: 'Stapler', finisher: 'overtime', suit: '#353c4a', trim: '#e9edf2', skin: '#f0c8a8', hair: '#7a4128' },
   nurse: { id: 'nurse', team: 'def', name: 'The Nurse', gun: 'Syringe', finisher: 'sedated', suit: '#e8f3f6', trim: '#41b6c8', skin: '#e3b08d', hair: '#8a5a33' },
 };
 

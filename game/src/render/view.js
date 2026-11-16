@@ -46,7 +46,7 @@ export function createView(host, world) {
     vmGun = buildGun(roleId);
     // Held low on the right and angled in, so the rifle's left flank, bolt and scope read.
     vmGun.position.set(0.22, -0.25, -0.58);
-    vmGun.rotation.set(0.03, 0.17, 0.1);
+    vmGun.rotation.set(0.03, 0.24, -0.22);
     vmHolder.add(vmGun);
     vmRole = roleId;
   }
