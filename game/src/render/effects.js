@@ -2,6 +2,7 @@
 // career, muzzle flashes, impact sparks and hit puffs, smoke clouds, the camera-flash pop, and the
 // glitter charge itself with its blinking light and its confetti blast.
 import * as THREE from 'three';
+import { zoneDecal as zoneDecal_ } from './textures.js';
 
 const TRACER_COLORS = { boss: '#ffd56b', playboy: '#ff7aa8', chef: '#ffe0b0', teacher: '#ffffff', office: '#9fc4ff', nurse: '#6ff2df' };
 const MAX_TRACERS = 24;
@@ -108,6 +109,17 @@ export function createEffects(scene) {
     zoneDiscs.push(disc);
   }
 
+  // The drop zone: a painted ring where the first of the Night Shift fell, and a beam of light.
+  const zone = new THREE.Group();
+  const zoneDecal = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ map: zoneDecal_('★', '#f5c45b'), transparent: true, depthWrite: false }));
+  zoneDecal.rotation.x = -Math.PI / 2;
+  zoneDecal.position.y = 0.03;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.4, 30, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#f5c45b', transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  beam.position.y = 15;
+  zone.add(zoneDecal, beam);
+  zone.visible = false;
+  scene.add(zone);
+
   // The glitter charge.
   const charge = new THREE.Group();
   const caseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.3), new THREE.MeshStandardMaterial({ color: '#d63c8f', roughness: 0.3, metalness: 0.5 }));
@@ -164,6 +176,15 @@ export function createEffects(scene) {
       } else {
         burst(x, y, z, 24, kind === 'fire' ? '#ff7a2a' : kind === 'slow' ? '#7fe7c8' : '#ffffff', 3, 0.6, 2);
       }
+    },
+    /** A team combo: a ring of the team's colours and a column of sparks. */
+    combo(x, z, team) {
+      const colors = team === 'def' ? ['#f2609a', '#ffffff', '#7fe7c8'] : ['#4f8ff7', '#ffcf4a', '#ff5d8f'];
+      for (const c of colors) burst(x, 0.6, z, 80, c, 9, 1.6, 3);
+      flashLight.position.set(x, 2, z);
+      flashLight.color.set(colors[0]);
+      flashLight.intensity = 50;
+      flashLife = 0.5;
     },
     glitter(x, z) {
       const colors = ['#ff6fb5', '#ffd35b', '#7fe0ff', '#b98cff', '#ffffff'];
@@ -222,6 +243,13 @@ export function createEffects(scene) {
         if (z.kind === 'fire') burst(z.x + Math.cos(a) * r, 0.1, z.z + Math.sin(a) * r, 3, Math.random() < 0.5 ? '#ff7a2a' : '#ffd25a', 1.2, 0.7, -2.5);
         else burst(z.x + Math.cos(a) * r, 0.4, z.z + Math.sin(a) * r, 1, '#7fe7c8', 0.4, 1.6, -0.4);
       });
+      const dz = world.dropZone;
+      zone.visible = !!dz;
+      if (dz) {
+        zone.position.set(dz.x, dz.y, dz.z);
+        zoneDecal.rotation.z = time * 0.3;
+        beam.material.opacity = 0.12 + Math.sin(time * 3) * 0.04;
+      }
       // The charge: carried charges are drawn on the carrier; here, dropped or planted ones.
       const bomb = world.bomb;
       charge.visible = bomb.state === 'dropped' || bomb.state === 'planted';

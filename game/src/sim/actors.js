@@ -32,6 +32,7 @@ export function createSoldier(id, team, roleId, isPlayer) {
     blind: 0, // seconds of photocopier flash left
     slowed: 0, // seconds of sedative left
     charmed: 0, // seconds of rose-bouquet charm left: no shooting
+    stunned: 0, // seconds of Staff Meeting left: no moving, no shooting
     burning: 0,
     hasBomb: false,
     kills: 0,
@@ -66,7 +67,7 @@ export function respawn(s, x, z, yaw, survived) {
   s.killedBy = null;
   s.roundKills = 0;
   s.hasBomb = false;
-  s.blind = s.slowed = s.charmed = s.burning = 0;
+  s.blind = s.slowed = s.charmed = s.stunned = s.burning = 0;
   if (!survived) {
     s.gun = createGun(MODELS.standard);
     s.armor = 0;
@@ -108,7 +109,7 @@ export function moveSoldier(s, intent, dt) {
   else if (intent.walk) top *= MOVE.walkMul;
   if (s.scoped) top *= MOVE.scopedMul;
   if (s.slowed > 0) top *= GRENADE.slowMul;
-  if (s.action) top = 0;
+  if (s.action || s.stunned > 0) top = 0;
 
   const sin = Math.sin(s.yaw);
   const cos = Math.cos(s.yaw);

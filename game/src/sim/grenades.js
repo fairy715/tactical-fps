@@ -3,7 +3,7 @@
 // a sedative gas that slows and unscopes, a money bag that explodes, a rose bouquet that charms
 // enemies out of shooting, or a flaming pan that sets the ground alight. A kill by a grenade
 // counts for its thrower, finisher and all.
-import { GRENADE, GRENADES } from './config.js';
+import { COMBOS, COMBO_RULES, GRENADE, GRENADES } from './config.js';
 import { eyePos } from './actors.js';
 import { killSoldier } from './combat.js';
 import { lineOfSight } from './collision.js';
@@ -146,4 +146,40 @@ function detonate(world, g) {
     });
   }
   world.events.push({ type: 'burst', kind: g.kind, x: g.x, y: g.y, z: g.z, by: g.owner });
+  if (COMBOS[g.team].kinds.includes(g.kind)) checkCombo(world, g, owner);
+}
+
+/**
+ * Team combos: a team's three grenades landing together (thrown from anywhere) set off its combo
+ * on every enemy near them. Each grenade counts toward one combo only.
+ */
+function checkCombo(world, g, owner) {
+  const c = COMBOS[g.team];
+  world.combo = world.combo.filter((b) => world.time - b.t <= COMBO_RULES.window);
+  world.combo.push({ kind: g.kind, x: g.x, z: g.z, t: world.time, team: g.team });
+  const near = world.combo.filter((b) => b.team === g.team && Math.hypot(b.x - g.x, b.z - g.z) <= COMBO_RULES.radius);
+  const picked = c.kinds.map((k) => near.find((b) => b.kind === k));
+  // Call it out: teammates in range land theirs on the same spot while the window is open.
+  if (picked.some((b) => !b)) {
+    world.comboCalls[g.team] = { x: g.x, z: g.z, t: world.time, kinds: near.map((b) => b.kind) };
+    return;
+  }
+  world.comboCalls[g.team] = null;
+  world.combo = world.combo.filter((b) => !picked.includes(b));
+  const x = (picked[0].x + picked[1].x + picked[2].x) / 3;
+  const z = (picked[0].z + picked[1].z + picked[2].z) / 3;
+  world.events.push({ type: 'combo', name: c.name, x, z, team: g.team });
+  for (const s of world.soldiers) {
+    if (!s.alive || s.team === g.team || Math.hypot(s.pos.x - x, s.pos.z - z) > COMBO_RULES.reach) continue;
+    s.stunned = c.stun;
+    s.scoped = false;
+    if (c.strip) {
+      s.armor = 0;
+      s.grenades = 0;
+    }
+    s.health -= c.damage;
+    s.lastHurt = world.time;
+    world.events.push({ type: 'hit', shooter: owner.id, victim: s.id, head: false, dmg: c.damage });
+    if (s.health <= 0) killSoldier(world, s, owner, false);
+  }
 }

@@ -66,6 +66,8 @@ export function createView(host, world) {
         finishers.start(figures[e.victim], v, e.finisher, time);
       } else if (e.type === 'burst') {
         effects.burstOf(e.kind, e.x, e.y, e.z);
+      } else if (e.type === 'combo') {
+        effects.combo(e.x, e.z, e.team, e.name);
       } else if (e.type === 'detonated') {
         effects.glitter(e.x, e.z);
       } else if (e.type === 'roundStart') {

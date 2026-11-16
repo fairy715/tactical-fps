@@ -75,6 +75,19 @@ export const GRENADES = {
 
 export const GRENADE_MAX = 2;
 
+/**
+ * Team combos: when a team's three grenades land within `window` seconds and `radius` metres of
+ * each other (wherever they were thrown from), every enemy within `reach` of them pays. The Night
+ * Shift's Staff Meeting stuns and hurts; the Gentlemen's Hostile Takeover strips armour and
+ * grenades, hurts more and dazes for a moment.
+ */
+export const COMBOS = {
+  def: { name: 'Staff Meeting', kinds: ['smoke', 'flash', 'slow'], stun: 3, damage: 35, strip: false },
+  atk: { name: 'Hostile Takeover', kinds: ['frag', 'charm', 'fire'], stun: 1.5, damage: 45, strip: true },
+};
+
+export const COMBO_RULES = { window: 6, radius: 7, reach: 8.5 };
+
 export const BUY_LIST = ['standard', 'rapid', 'heavy', 'vest', 'grenade'];
 
 export const GRENADE = {
@@ -116,7 +129,7 @@ export const ROUND = {
   freeze: 7,
   live: 115,
   bombTimer: 40,
-  plantTime: 3.2,
+  plantTime: 2.5,
   defuseTime: 6,
   over: 5,
   winsToTake: 4,

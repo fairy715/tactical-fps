@@ -7,7 +7,7 @@ import { createSoldier, eyePos, moveSoldier, respawn } from './actors.js';
 import { createBrain, botBuy, planRound, updateBot } from './bots.js';
 import { applyHit, killSoldier, traceShot } from './combat.js';
 import { throwGrenade, updateGrenades } from './grenades.js';
-import { ROUTES, SITES, SPAWNS } from './map.js';
+import { ROUTES, SPAWNS } from './map.js';
 import { createRng } from './rng.js';
 import { fireGun, settleRecoil, startReload, tickGun } from './weapons.js';
 import { createGun } from './weapons.js';
@@ -42,6 +42,9 @@ export function createWorld(options) {
     economy: ECONOMY,
     buy: (s, item) => buy(world, s, item),
     zones: [],
+    combo: [], // recent grenade bursts, for the team combos
+    comboCalls: { atk: null, def: null }, // where each team's bots should land their next throw
+    dropZone: null, // where the charge may be planted this round, once a Night Shift member falls
     botThrow: (s) => throwGrenade(world, s),
     dropBomb: (s) => dropBomb(world, s),
   };
@@ -67,6 +70,9 @@ function startRound(world) {
   world.grenades = [];
   world.smokes = [];
   world.zones = [];
+  world.combo = [];
+  world.comboCalls = { atk: null, def: null };
+  world.dropZone = null;
   for (const team of ['atk', 'def']) {
     const squad = world.soldiers.filter((s) => s.team === team);
     squad.forEach((s, i) => {
@@ -129,8 +135,9 @@ function applyCommand(world, s, cmd, dt) {
   s.blind = Math.max(0, s.blind - dt);
   s.slowed = Math.max(0, s.slowed - dt);
   s.charmed = Math.max(0, s.charmed - dt);
+  s.stunned = Math.max(0, s.stunned - dt);
   s.burning = Math.max(0, s.burning - dt);
-  if (frozen) return;
+  if (frozen || s.stunned > 0) return;
   if (cmd.reload && startReload(gun)) {
     s.scoped = false;
     world.events.push({ type: 'reload', id: s.id });
@@ -158,6 +165,27 @@ function applyCommand(world, s, cmd, dt) {
 
 const IDLE = { fwd: 0, side: 0, crouch: false, walk: false, jump: false };
 
+/**
+ * The drop zone: no site is fixed. Where the first of the Night Shift falls in a round, the
+ * glitter charge can be planted, on the same floor (a tower deck counts).
+ */
+export function inDropZone(world, s) {
+  const z = world.dropZone;
+  return !!z && Math.hypot(z.x - s.pos.x, z.z - s.pos.z) < ROUND.siteRadius && Math.abs(z.y - s.pos.y) < 1.5;
+}
+
+function markDropZone(world) {
+  if (world.dropZone) return;
+  for (const e of world.events) {
+    if (e.type !== 'kill') continue;
+    const v = world.soldiers[e.victim];
+    if (v.team !== 'def') continue;
+    world.dropZone = { name: `where ${v.name} fell`, x: v.pos.x, y: v.pos.y, z: v.pos.z, by: v.id };
+    world.events.push({ type: 'dropZone', x: v.pos.x, y: v.pos.y, z: v.pos.z, victim: v.id });
+    return;
+  }
+}
+
 /** Planting and defusing: hold the use key, stand still, keep at it. */
 function useAction(world, s, using, dt) {
   const bomb = world.bomb;
@@ -171,16 +199,15 @@ function useAction(world, s, using, dt) {
     return;
   }
   if (s.team === 'atk' && s.hasBomb && world.phase === 'live') {
-    const site = Object.values(SITES).find((t) => Math.hypot(t.x - s.pos.x, t.z - s.pos.z) < ROUND.siteRadius);
-    if (!site) return;
+    if (!inDropZone(world, s)) return;
     s.action = 'plant';
     bomb.plant += dt;
     if (bomb.plant >= ROUND.plantTime) {
       s.hasBomb = false;
-      Object.assign(bomb, { state: 'planted', carrier: null, x: s.pos.x, y: s.pos.y, z: s.pos.z, site: site.id, timer: ROUND.bombTimer, planter: s.id });
+      Object.assign(bomb, { state: 'planted', carrier: null, x: s.pos.x, y: s.pos.y, z: s.pos.z, site: world.dropZone.name, timer: ROUND.bombTimer, planter: s.id });
       s.money = Math.min(ECONOMY.max, s.money + ECONOMY.plantBonus);
       world.phase = 'planted';
-      world.events.push({ type: 'planted', site: site.id, by: s.id });
+      world.events.push({ type: 'planted', site: world.dropZone.name, by: s.id });
     }
     return;
   }
@@ -292,6 +319,7 @@ export function stepWorld(world, playerCmd, dt) {
     }
   }
   updateGrenades(world, dt);
+  if (world.phase === 'live') markDropZone(world);
   if (world.phase === 'live' || world.phase === 'planted') checkRound(world);
 }
 

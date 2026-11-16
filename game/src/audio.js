@@ -130,6 +130,10 @@ export function playEvents(world, events, listener) {
       const out = place(listener, e.x, e.z, 2.2);
       noise(out, now, 1.4, 900);
       for (let i = 0; i < 6; i++) tone(out, now + i * 0.08, 600 + i * 220, 0.3, 'triangle', 0.15);
+    } else if (e.type === 'combo') {
+      const out = place(listener, e.x, e.z, 2);
+      (e.team === 'def' ? [523, 659, 784, 1046, 1318] : [196, 247, 294, 392, 494]).forEach((f, i) => tone(out, now + i * 0.06, f, 0.5, 'sawtooth', 0.09));
+      noise(out, now, 0.8, 1800, 'bandpass', 0.8);
     } else if (e.type === 'defused') {
       [660, 880, 1100].forEach((f, i) => tone(A.master, now + i * 0.1, f, 0.25, 'triangle', 0.15));
     } else if (e.type === 'burst') {

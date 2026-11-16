@@ -3,7 +3,9 @@
 // stops to scope before it fires. Its job comes from its team's plan for the round: the
 // Gentlemen push a lane to a site, plant the charge and guard it; the Night Shift spread over
 // posts (tower decks included), rotate toward trouble and retake a planted site to defuse.
-import { BOT } from './config.js';
+import { BOT, GRENADES } from './config.js';
+
+const GRENADE_KIND = Object.fromEntries(Object.entries(GRENADES).map(([role, g]) => [role, g.kind]));
 import { eyePos, hitShape } from './actors.js';
 import { lineOfSight } from './collision.js';
 import { HOLDS, SITES } from './map.js';
@@ -161,8 +163,25 @@ function followPath(s, b, dt) {
   return false;
 }
 
+/** Where the fight is about: the drop zone once there is one, else the site area the push aims at. */
 function siteOf(world) {
-  return SITES[world.bomb.site || world.plan.site];
+  return world.dropZone || SITES[world.plan.site];
+}
+
+/**
+ * The drop zone just appeared: the carrier heads for it, the other Gentlemen cover it, and the
+ * Night Shift spread round it to deny it.
+ */
+function onDropZone(world, s, b) {
+  const zone = world.dropZone;
+  b.zone = zone;
+  b.goal = null;
+  b.path = [];
+  const a = world.rng.next() * Math.PI * 2;
+  const ox = zone.x + Math.cos(a) * 8;
+  const oz = zone.z + Math.sin(a) * 8;
+  if (s.team === 'atk') b.task = s.hasBomb ? { kind: 'plant' } : { kind: 'guard', x: ox, z: oz };
+  else b.task = { kind: 'hold', post: [ox, oz, 0, zone.x, zone.z] };
 }
 
 /** The bot's decisions for one step; writes its intent and its fire/use wishes. */
@@ -175,7 +194,7 @@ export function updateBot(world, s, dt) {
   intent.walk = false;
   b.wantFire = false;
   b.wantUse = false;
-  if (!s.alive || world.phase === 'freeze') {
+  if (!s.alive || world.phase === 'freeze' || s.stunned > 0) {
     intent.crouch = false;
     return;
   }
@@ -214,6 +233,8 @@ export function updateBot(world, s, dt) {
       intent.jump = true;
     }
   }
+
+  if (world.dropZone && b.zone !== world.dropZone) onDropZone(world, s, b);
 
   // A grenade first, when the moment suits the career's.
   const lob = grenadeTarget(world, s, b);
@@ -266,6 +287,12 @@ function doTask(world, s, b, dt) {
     }
   }
 
+  // Whoever holds the charge once there is a zone takes it there.
+  if (s.hasBomb && world.dropZone && (!b.task || b.task.kind !== 'plant')) {
+    b.task = { kind: 'plant' };
+    b.goal = null;
+  }
+
   // A dropped charge: the nearest Gentleman fetches it.
   if (s.team === 'atk' && bomb.state === 'dropped') {
     const mine = world.soldiers.filter((o) => o.team === 'atk' && o.alive).sort((p, q) => Math.hypot(p.pos.x - bomb.x, p.pos.z - bomb.z) - Math.hypot(q.pos.x - bomb.x, q.pos.z - bomb.z))[0];
@@ -307,23 +334,28 @@ function doTask(world, s, b, dt) {
     return;
   }
   if (task.kind === 'guard') {
+    // Cover the zone facing outward, toward where trouble comes from.
+    const centre = siteOf(world);
     setGoal(world, s, b, task.x, task.z, 0);
     if (followPath(s, b, dt)) {
-      aimToward(s, b, bomb.x * 2 - task.x, 1.4, bomb.z * 2 - task.z, dt);
+      aimToward(s, b, task.x * 2 - centre.x, 1.4, task.z * 2 - centre.z, dt);
       intent.crouch = true;
     }
     return;
   }
+  if (task.kind === 'plant') {
+    const zone = world.dropZone;
+    if (Math.hypot(zone.x - s.pos.x, zone.z - s.pos.z) < 2 && Math.abs(zone.y - s.pos.y) < 1.5) {
+      intent.crouch = true;
+      b.wantUse = true;
+      return;
+    }
+    setGoal(world, s, b, zone.x, zone.z, zone.y);
+    followPath(s, b, dt);
+    return;
+  }
   if (task.kind === 'route') {
     const site = SITES[task.site];
-    if (s.hasBomb) {
-      const d = Math.hypot(site.x - s.pos.x, site.z - s.pos.z);
-      if (d < 2.2) {
-        intent.crouch = true;
-        b.wantUse = true;
-        return;
-      }
-    }
     if (!b.goal) {
       const lanes = world.routes[task.site];
       const lane = lanes[task.lane % lanes.length];
@@ -333,9 +365,8 @@ function doTask(world, s, b, dt) {
     if (s.role.id === 'chef' && s.grenades > 0 && Math.hypot(site.x - s.pos.x, site.z - s.pos.z) < 24) {
       if (lobAt(world, s, b, site.x, site.z, dt)) return;
     }
-    if (followPath(s, b, dt) && !s.hasBomb) {
-      b.task = { kind: 'guard', x: s.pos.x, z: s.pos.z };
-    }
+    // Arrived with no drop zone yet: hold here and hunt from cover until one falls.
+    if (followPath(s, b, dt)) b.task = { kind: 'guard', x: s.pos.x, z: s.pos.z };
   }
 }
 
@@ -362,10 +393,18 @@ function lobAt(world, s, b, x, z, dt) {
 /** Whether a bot should spend its grenade on what it just saw or heard, and where. */
 function grenadeTarget(world, s, b) {
   if (s.grenades <= 0 || world.time < b.nextThrow) return null;
+  // A teammate's grenade just landed: land this one on the same spot for the team combo.
+  const call = world.comboCalls[s.team];
+  if (call && world.time - call.t < 3 && !call.kinds.includes(GRENADE_KIND[s.role.id])) return call;
   const kind = s.role.id;
   // The Playboy charms a foe that is in view; the rest lob at what they remember or heard.
   if (kind === 'playboy') return b.target ? b.target.pos : null;
-  if (b.target && kind !== 'teacher') return null;
+  // Open with gear on a foe in mid range, which also calls the team combo.
+  if (b.target) {
+    const d = Math.hypot(b.target.pos.x - s.pos.x, b.target.pos.z - s.pos.z);
+    return d > 8 && d < 24 ? b.target.pos : null;
+  }
+  if (b.target) return null;
   return b.lastSeen && world.time - b.lastSeenAt < 3 ? b.lastSeen : b.alert && world.time - b.alert.t < 3 ? b.alert : null;
 }
 

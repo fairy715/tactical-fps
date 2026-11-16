@@ -139,8 +139,8 @@ export function stone() {
   });
 }
 
-/** The painted letter on the plaza that marks a charge site. */
-export function siteDecal(letter, color) {
+/** The painted mark on the plaza where the drop zone falls. */
+export function zoneDecal(letter, color) {
   const tex = canvasTexture(256, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = color;

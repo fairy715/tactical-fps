@@ -2,7 +2,8 @@
 // as a clash of careers), vitals, ammo, crosshair and scope, banners, the plant/defuse bar, the buy
 // menu, the scoreboard, the title's career picker and the match-over table.
 import { BUY_LIST, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLES, ROLE_ORDER, ROUND, TEAMS } from '../sim/config.js';
-import { BOUNDS, SITES, SOLIDS } from '../sim/map.js';
+import { BOUNDS, SOLIDS } from '../sim/map.js';
+import { inDropZone } from '../sim/world.js';
 import { currentSpread } from '../sim/weapons.js';
 import { GAG_VERBS } from '../render/finishers.js';
 
@@ -51,11 +52,14 @@ export function createHud() {
       map.fillStyle = b.kind === 'tower' ? '#f2c230' : b.h > 3 ? 'rgba(220,210,195,0.55)' : 'rgba(220,210,195,0.3)';
       map.fillRect(x0, z0, Math.max(1, x1 - x0), Math.max(1, z1 - z0));
     }
-    map.font = 'bold 14px sans-serif';
-    map.fillStyle = '#f5c45b';
-    for (const site of Object.values(SITES)) {
-      const [x, z] = toMap(site.x, site.z);
-      map.fillText(site.id, x - 5, z + 5);
+    const zone = world.dropZone;
+    if (zone) {
+      const [x, z] = toMap(zone.x, zone.z);
+      map.strokeStyle = '#f5c45b';
+      map.lineWidth = 2;
+      map.beginPath();
+      map.arc(x, z, (ROUND.siteRadius / (BOUNDS.x1 - BOUNDS.x0)) * 240, 0, Math.PI * 2);
+      map.stroke();
     }
     for (const s of world.soldiers) {
       if (!s.alive) continue;
@@ -112,7 +116,9 @@ export function createHud() {
         el.hitmarker.classList.toggle('head', e.head);
       } else if (e.type === 'hit' && e.victim === viewer.id) el.damage.style.opacity = '1';
       else if (e.type === 'live') banner('Go go go', `${TEAMS[viewer.team].name}: ${TEAMS[viewer.team].role}`, 2);
-      else if (e.type === 'planted') banner(`Charge planted at ${e.site}`, `${ROUND.bombTimer} seconds to defuse it`, 3);
+      else if (e.type === 'planted') banner('Charge planted!', `${ROUND.bombTimer} seconds to defuse it`, 3);
+      else if (e.type === 'dropZone') banner('Drop zone marked', `The charge can go down where ${world.soldiers[e.victim].name} fell`, 3);
+      else if (e.type === 'combo') banner(`${e.name.toUpperCase()}!`, e.team === 'def' ? 'Chalk, flash and sedative together: everyone near it is stunned' : 'Coins, roses and flames together: armour and gear confiscated', 3);
       else if (e.type === 'roundOver') banner(`${e.teamName} take the round`, REASONS[e.reason], 4);
       else if (e.type === 'roundStart') {
         banner(`Round ${e.round}`, 'Buy with B · the round goes live when the clock runs out', 3);
@@ -147,7 +153,7 @@ export function createHud() {
     el.ammo.classList.toggle('empty', gun.mag === 0);
     el.grenadeName.textContent = GRENADES[viewer.role.id].name;
     el.grenades.textContent = viewer.grenades;
-    el.status.textContent = viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : '';
+    el.status.textContent = viewer.stunned > 0 ? 'Stunned by a team combo!' : viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : '';
     // The crosshair opens with the spread.
     const gap = 6 + Math.min(60, currentSpread(viewer) * 900);
     const arms = el.crosshair.children;
@@ -165,9 +171,9 @@ export function createHud() {
     const bomb = world.bomb;
     let hint = '';
     if (viewer === me && me.alive) {
-      const site = Object.values(SITES).find((t) => Math.hypot(t.x - me.pos.x, t.z - me.pos.z) < ROUND.siteRadius);
-      if (me.hasBomb && site && world.phase === 'live') hint = `Hold E to plant the glitter charge at ${site.id}`;
-      else if (me.hasBomb) hint = 'You carry the glitter charge: take it to A or B';
+      if (me.hasBomb && inDropZone(world, me) && world.phase === 'live') hint = 'Hold E to plant the glitter charge';
+      else if (me.hasBomb) hint = world.dropZone ? 'Carry the glitter charge to the drop zone' : 'You carry the charge: drop one of the Night Shift to mark where it goes';
+      else if (me.team === 'def' && !world.dropZone && world.phase === 'live') hint = 'Stay alive: where the first of you falls, they can plant';
       else if (me.team === 'def' && planted && Math.hypot(bomb.x - me.pos.x, bomb.z - me.pos.z) < 1.6) hint = 'Hold E to defuse';
       if (world.phase === 'freeze') hint = 'Press B to buy';
     }

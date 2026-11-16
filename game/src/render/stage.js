@@ -2,7 +2,7 @@
 // itself built from the simulation's boxes (so what you see is exactly what blocks you), dressed
 // with lamps, trees, benches and the painted site letters.
 import * as THREE from 'three';
-import { DECOR, SITES, SOLIDS } from '../sim/map.js';
+import { DECOR, SOLIDS } from '../sim/map.js';
 import * as T from './textures.js';
 
 const BUILDING_LOOK = {
@@ -79,12 +79,6 @@ function addGround(scene) {
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
-  for (const site of Object.values(SITES)) {
-    const decal = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshBasicMaterial({ map: T.siteDecal(site.id, '#f5c45b'), transparent: true, opacity: 0.85, depthWrite: false }));
-    decal.rotation.x = -Math.PI / 2;
-    decal.position.set(site.x, 0.02, site.z);
-    scene.add(decal);
-  }
 }
 
 function materialFor(kind, id, cache) {
