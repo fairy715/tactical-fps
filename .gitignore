@@ -1,0 +1,12 @@
+# Secrets: never commit
+*keypair*.json
+wallet.json
+credentials
+.env
+.env.*
+
+# Build output
+out/
+preview/
+*.tar.gz
+node_modules/
