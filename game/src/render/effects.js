@@ -2,7 +2,8 @@
 // career, muzzle flashes, impact sparks and hit puffs, smoke clouds, the camera-flash pop, and the
 // glitter charge itself with its blinking light and its confetti blast.
 import * as THREE from 'three';
-import { zoneDecal as zoneDecal_ } from './textures.js';
+import { TEAMS } from '../sim/config.js';
+import { zoneMark } from './textures.js';
 
 const TRACER_COLORS = { boss: '#ffd56b', playboy: '#ff7aa8', chef: '#ffe0b0', teacher: '#ffffff', office: '#9fc4ff', nurse: '#6ff2df' };
 const MAX_TRACERS = 24;
@@ -109,30 +110,48 @@ export function createEffects(scene) {
     zoneDiscs.push(disc);
   }
 
-  // The drop zone: a painted ring where the first of the Night Shift fell, and a beam of light.
-  const zone = new THREE.Group();
-  const zoneDecal = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ map: zoneDecal_('★', '#f5c45b'), transparent: true, depthWrite: false }));
-  zoneDecal.rotation.x = -Math.PI / 2;
-  zoneDecal.position.y = 0.03;
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.4, 30, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#f5c45b', transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-  beam.position.y = 15;
-  zone.add(zoneDecal, beam);
-  zone.visible = false;
-  scene.add(zone);
+  // Each team's drop zone: a painted ring in the team's colour where the other side first fell, and
+  // a beam of light to find it by.
+  const zoneMarks = {};
+  for (const team of ['atk', 'def']) {
+    const color = TEAMS[team].color;
+    const group = new THREE.Group();
+    const decal = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ map: zoneMark('★', color), transparent: true, depthWrite: false }));
+    decal.rotation.x = -Math.PI / 2;
+    decal.position.y = 0.03;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.4, 30, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    beam.position.y = 15;
+    group.add(decal, beam);
+    group.visible = false;
+    scene.add(group);
+    zoneMarks[team] = { group, decal, beam };
+  }
 
-  // The glitter charge.
-  const charge = new THREE.Group();
-  const caseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.3), new THREE.MeshStandardMaterial({ color: '#d63c8f', roughness: 0.3, metalness: 0.5 }));
-  caseMesh.position.y = 0.11;
-  const bow = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: '#f5c45b', metalness: 0.8, roughness: 0.3 }));
-  bow.position.y = 0.26;
-  const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3355' }));
-  led.position.set(0.12, 0.23, -0.1);
-  charge.add(caseMesh, bow, led);
-  charge.visible = false;
-  scene.add(charge);
-  const ledLight = new THREE.PointLight('#ff3355', 0, 6);
-  charge.add(ledLight);
+  // The closing ring: a tall translucent wall.
+  const ringWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 14, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: '#7f9cff', transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  ringWall.position.y = 7;
+  ringWall.visible = false;
+  scene.add(ringWall);
+
+  // Each team's glitter charge: a gift box in the team's colour with a gold bow and a blinking light.
+  const charges = {};
+  for (const team of ['atk', 'def']) {
+    const group = new THREE.Group();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.3), new THREE.MeshStandardMaterial({ color: TEAMS[team].color, roughness: 0.3, metalness: 0.5 }));
+    box.position.y = 0.11;
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: '#f5c45b', metalness: 0.8, roughness: 0.3 }));
+    bow.position.y = 0.26;
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3355' }));
+    led.position.set(0.12, 0.23, -0.1);
+    const light = new THREE.PointLight('#ff3355', 0, 6);
+    group.add(box, bow, led, light);
+    group.visible = false;
+    scene.add(group);
+    charges[team] = { group, led, light };
+  }
 
   return {
     tracer(e, color, near) {
@@ -243,22 +262,33 @@ export function createEffects(scene) {
         if (z.kind === 'fire') burst(z.x + Math.cos(a) * r, 0.1, z.z + Math.sin(a) * r, 3, Math.random() < 0.5 ? '#ff7a2a' : '#ffd25a', 1.2, 0.7, -2.5);
         else burst(z.x + Math.cos(a) * r, 0.4, z.z + Math.sin(a) * r, 1, '#7fe7c8', 0.4, 1.6, -0.4);
       });
-      const dz = world.dropZone;
-      zone.visible = !!dz;
-      if (dz) {
-        zone.position.set(dz.x, dz.y, dz.z);
-        zoneDecal.rotation.z = time * 0.3;
-        beam.material.opacity = 0.12 + Math.sin(time * 3) * 0.04;
+      const ring = world.ring;
+      ringWall.visible = !!ring;
+      if (ring) {
+        ringWall.position.x = ring.x;
+        ringWall.position.z = ring.z;
+        ringWall.scale.set(ring.r, 1, ring.r);
+        ringWall.material.opacity = world.time < ring.startAt ? 0.1 : 0.2 + Math.sin(time * 4) * 0.05;
       }
-      // The charge: carried charges are drawn on the carrier; here, dropped or planted ones.
-      const bomb = world.bomb;
-      charge.visible = bomb.state === 'dropped' || bomb.state === 'planted';
-      if (charge.visible) {
-        charge.position.set(bomb.x, bomb.y, bomb.z);
+      for (const team of ['atk', 'def']) {
+        const zoneAt = world.dropZones[team];
+        const mark = zoneMarks[team];
+        mark.group.visible = !!zoneAt;
+        if (zoneAt) {
+          mark.group.position.set(zoneAt.x, zoneAt.y, zoneAt.z);
+          mark.decal.rotation.z = time * 0.3;
+          mark.beam.material.opacity = 0.12 + Math.sin(time * 3) * 0.04;
+        }
+        // Charges on the ground, dropped or planted (a carried one rides with its carrier).
+        const bomb = world.bombs[team];
+        const c = charges[team];
+        c.group.visible = bomb.state === 'dropped' || bomb.state === 'planted';
+        if (!c.group.visible) continue;
+        c.group.position.set(bomb.x, bomb.y, bomb.z);
         const rate = bomb.state === 'planted' ? Math.max(1.5, 12 - bomb.timer * 0.25) : 0.7;
         const on = Math.sin(time * rate * Math.PI) > 0;
-        led.material.color.set(on ? '#ff3355' : '#330a12');
-        ledLight.intensity = bomb.state === 'planted' && on ? 3 : 0;
+        c.led.material.color.set(on ? '#ff3355' : '#330a12');
+        c.light.intensity = bomb.state === 'planted' && on ? 3 : 0;
       }
     },
   };

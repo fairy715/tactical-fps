@@ -1,7 +1,7 @@
 // The screenshot scenes behind ?shot=start|play|buy|end. Each plays the real rules forward from a
 // fixed seed (the player's career driven by a bot brain), so the frame is what that moment of a
 // real match looks like and the same address always gives the same frame.
-//   start: the title over a bots-only match          (&t= seconds)
+//   start: the title beside the six careers' line-up (&t= seconds of idle animation)
 //   play:  a moment of a match from your eyes        (&team= &role= &seed= &t=)
 //   buy:   the buy menu at the start of round 2      (&team= &role= &seed=)
 //   end:   the match-over table of a whole match     (&team= &role= &seed=)
@@ -49,8 +49,7 @@ export function prepareShot(app, hud, params) {
   const role = params.get('role') || 'nurse';
   const shot = params.get('shot');
   if (shot === 'start') {
-    const t = run(app, hud, Number(params.get('t') || 20));
-    drawFrame(app, hud, t);
+    for (let i = 0; i < 10; i++) app.view.renderLineup(Number(params.get('t') || 3) + i * 0.05);
     return;
   }
   document.getElementById('title').hidden = true;

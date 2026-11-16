@@ -24,6 +24,9 @@ const GAG_TEXT = {
   served: ['ORDER UP!', '#2b2b2b', 'rgba(255,255,255,0.92)'],
 };
 
+/** The face a fallen figure pulls for each gag. */
+const FACES = { graded: 'shock', overtime: 'ko', sedated: 'sleep', fired: 'shock', swoon: 'love', served: 'ko', blast: 'ko', ring: 'dizzy' };
+
 export const GAG_VERBS = {
   graded: 'graded',
   overtime: 'buried in overtime',
@@ -32,6 +35,7 @@ export const GAG_VERBS = {
   swoon: 'swept off their feet',
   served: 'served',
   blast: 'glittered',
+  ring: 'caught outside the ring',
 };
 
 export function createFinishers(scene) {
@@ -42,9 +46,10 @@ export function createFinishers(scene) {
   const silver = new THREE.MeshStandardMaterial({ color: '#d7dbe0', roughness: 0.15, metalness: 0.95 });
   const bandage = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
 
-  /** Starts a gag on a fallen figure: kind is the killer's finisher ('blast' for the charge). */
+  /** Starts a gag on a fallen figure: kind is the killer's finisher ('blast', 'ring' without one). */
   function start(fig, s, kind, time) {
     const g = { fig, kind: kind || 'blast', t0: time, props: [], x: s.pos.x, y: s.pos.y, z: s.pos.z };
+    fig.setFace(FACES[g.kind] || 'ko');
     const root = new THREE.Group();
     root.position.set(g.x, g.y, g.z);
     scene.add(root);
@@ -104,7 +109,7 @@ export function createFinishers(scene) {
     } else if (g.kind === 'graded') {
       const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.46), new THREE.MeshBasicMaterial({ map: label('F', '#d32f2f', '#fbf6e9', 1).material.map }));
       fig.rig.head.add(sheet);
-      sheet.position.set(0, 0.05, -0.17);
+      sheet.position.set(0, 0.24, -0.08);
       sheet.rotation.y = Math.PI;
       g.sheet = sheet;
     }

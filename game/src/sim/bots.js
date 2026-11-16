@@ -10,6 +10,7 @@ import { eyePos, hitShape } from './actors.js';
 import { lineOfSight } from './collision.js';
 import { HOLDS, SITES } from './map.js';
 import { planRoute } from './nav.js';
+import { enemyOf } from './objective.js';
 import { clamp, wrapAngle, yawTo } from './vec.js';
 
 const eye = { x: 0, y: 0, z: 0 };
@@ -85,6 +86,7 @@ function reset(b) {
   b.lastSeen = null;
   b.alert = null;
   b.nextThrow = 0;
+  b.zoneCount = 0;
   b.wantFire = false;
   b.wantUse = false;
 }
@@ -163,25 +165,30 @@ function followPath(s, b, dt) {
   return false;
 }
 
-/** Where the fight is about: the drop zone once there is one, else the site area the push aims at. */
-function siteOf(world) {
-  return world.dropZone || SITES[world.plan.site];
+/** Where this bot's fight is: its team's drop zone, else the enemy's, else the lane's site area. */
+function focusOf(world, s) {
+  return world.dropZones[s.team] || world.dropZones[enemyOf(s.team)] || SITES[world.plan.site];
 }
 
 /**
- * The drop zone just appeared: the carrier heads for it, the other Gentlemen cover it, and the
- * Night Shift spread round it to deny it.
+ * A drop zone appeared (either side's): the carrier takes the charge to its own zone; the others
+ * split between covering their zone and denying the enemy's, by turns.
  */
-function onDropZone(world, s, b) {
-  const zone = world.dropZone;
-  b.zone = zone;
+function onDropZones(world, s, b) {
+  const mine = world.dropZones[s.team];
+  const theirs = world.dropZones[enemyOf(s.team)];
+  b.zoneCount = (mine ? 1 : 0) + (theirs ? 1 : 0);
   b.goal = null;
   b.path = [];
+  if (s.hasBomb && mine) {
+    b.task = { kind: 'plant' };
+    return;
+  }
+  const zone = mine && (s.id % 2 === 0 || !theirs) ? mine : theirs;
   const a = world.rng.next() * Math.PI * 2;
   const ox = zone.x + Math.cos(a) * 8;
   const oz = zone.z + Math.sin(a) * 8;
-  if (s.team === 'atk') b.task = s.hasBomb ? { kind: 'plant' } : { kind: 'guard', x: ox, z: oz };
-  else b.task = { kind: 'hold', post: [ox, oz, 0, zone.x, zone.z] };
+  b.task = zone === mine ? { kind: 'guard', x: ox, z: oz, centre: zone } : { kind: 'hold', post: [ox, oz, 0, zone.x, zone.z] };
 }
 
 /** The bot's decisions for one step; writes its intent and its fire/use wishes. */
@@ -234,7 +241,8 @@ export function updateBot(world, s, dt) {
     }
   }
 
-  if (world.dropZone && b.zone !== world.dropZone) onDropZone(world, s, b);
+  const zones = (world.dropZones.atk ? 1 : 0) + (world.dropZones.def ? 1 : 0);
+  if (zones && b.zoneCount !== zones) onDropZones(world, s, b);
 
   // A grenade first, when the moment suits the career's.
   const lob = grenadeTarget(world, s, b);
@@ -264,40 +272,47 @@ export function updateBot(world, s, dt) {
 
 function doTask(world, s, b, dt) {
   const intent = b.intent;
-  const bomb = world.bomb;
+  const mine = world.bombs[s.team];
+  const theirs = world.bombs[enemyOf(s.team)];
 
-  // The charge is down: Night Shift retake and defuse; Gentlemen guard it.
-  if (bomb.state === 'planted') {
-    if (s.team === 'def') {
-      const d = Math.hypot(bomb.x - s.pos.x, bomb.z - s.pos.z);
-      if (d < 1.3) {
-        intent.crouch = true;
-        b.wantUse = true;
-        return;
-      }
-      setGoal(world, s, b, bomb.x, bomb.z, 0);
-      intent.crouch = false;
-      followPath(s, b, dt);
+  // The enemy's charge is ticking: everyone goes to defuse it.
+  if (theirs.state === 'planted') {
+    if (Math.hypot(theirs.x - s.pos.x, theirs.z - s.pos.z) < 1.3) {
+      intent.crouch = true;
+      b.wantUse = true;
       return;
     }
-    if (!b.task || b.task.kind !== 'guard') {
-      const site = siteOf(world);
-      const a = world.rng.next() * Math.PI * 2;
-      b.task = { kind: 'guard', x: site.x + Math.cos(a) * 7, z: site.z + Math.sin(a) * 7 };
-    }
+    setGoal(world, s, b, theirs.x, theirs.z, theirs.y);
+    intent.crouch = false;
+    followPath(s, b, dt);
+    return;
+  }
+  // Our charge is ticking: guard it.
+  if (mine.state === 'planted' && (!b.task || b.task.kind !== 'guard' || b.task.centre !== mine)) {
+    const a = world.rng.next() * Math.PI * 2;
+    b.task = { kind: 'guard', x: mine.x + Math.cos(a) * 7, z: mine.z + Math.sin(a) * 7, centre: mine };
+    b.goal = null;
   }
 
-  // Whoever holds the charge once there is a zone takes it there.
-  if (s.hasBomb && world.dropZone && (!b.task || b.task.kind !== 'plant')) {
+  // The ring is closing (or about to) and this bot is near its edge or outside: get inside.
+  const ring = world.ring;
+  if (ring && world.time > ring.startAt - 5 && Math.hypot(s.pos.x - ring.x, s.pos.z - ring.z) > ring.r - 6) {
+    setGoal(world, s, b, ring.x + (s.id % 3) * 2 - 2, ring.z + (s.id % 2) * 3 - 1.5, 0);
+    followPath(s, b, dt);
+    return;
+  }
+
+  // Whoever holds our charge once we have a zone takes it there.
+  if (s.hasBomb && world.dropZones[s.team] && (!b.task || b.task.kind !== 'plant')) {
     b.task = { kind: 'plant' };
     b.goal = null;
   }
 
-  // A dropped charge: the nearest Gentleman fetches it.
-  if (s.team === 'atk' && bomb.state === 'dropped') {
-    const mine = world.soldiers.filter((o) => o.team === 'atk' && o.alive).sort((p, q) => Math.hypot(p.pos.x - bomb.x, p.pos.z - bomb.z) - Math.hypot(q.pos.x - bomb.x, q.pos.z - bomb.z))[0];
-    if (mine === s) {
-      setGoal(world, s, b, bomb.x, bomb.z, bomb.y);
+  // Our charge on the ground: the nearest of us fetches it.
+  if (mine.state === 'dropped') {
+    const near = world.soldiers.filter((o) => o.team === s.team && o.alive).sort((p, q) => Math.hypot(p.pos.x - mine.x, p.pos.z - mine.z) - Math.hypot(q.pos.x - mine.x, q.pos.z - mine.z))[0];
+    if (near === s) {
+      setGoal(world, s, b, mine.x, mine.z, mine.y);
       followPath(s, b, dt);
       return;
     }
@@ -335,7 +350,7 @@ function doTask(world, s, b, dt) {
   }
   if (task.kind === 'guard') {
     // Cover the zone facing outward, toward where trouble comes from.
-    const centre = siteOf(world);
+    const centre = task.centre || focusOf(world, s);
     setGoal(world, s, b, task.x, task.z, 0);
     if (followPath(s, b, dt)) {
       aimToward(s, b, task.x * 2 - centre.x, 1.4, task.z * 2 - centre.z, dt);
@@ -344,7 +359,7 @@ function doTask(world, s, b, dt) {
     return;
   }
   if (task.kind === 'plant') {
-    const zone = world.dropZone;
+    const zone = world.dropZones[s.team];
     if (Math.hypot(zone.x - s.pos.x, zone.z - s.pos.z) < 2 && Math.abs(zone.y - s.pos.y) < 1.5) {
       intent.crouch = true;
       b.wantUse = true;

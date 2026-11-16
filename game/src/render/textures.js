@@ -139,8 +139,8 @@ export function stone() {
   });
 }
 
-/** The painted mark on the plaza where the drop zone falls. */
-export function zoneDecal(letter, color) {
+/** The painted mark on the plaza where a drop zone falls. */
+export function zoneMark(letter, color) {
   const tex = canvasTexture(256, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = color;

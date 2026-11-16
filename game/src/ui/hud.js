@@ -3,7 +3,7 @@
 // menu, the scoreboard, the title's career picker and the match-over table.
 import { BUY_LIST, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLES, ROLE_ORDER, ROUND, TEAMS } from '../sim/config.js';
 import { BOUNDS, SOLIDS } from '../sim/map.js';
-import { inDropZone } from '../sim/world.js';
+import { inDropZone, plantedBombs } from '../sim/world.js';
 import { currentSpread } from '../sim/weapons.js';
 import { GAG_VERBS } from '../render/finishers.js';
 
@@ -52,11 +52,21 @@ export function createHud() {
       map.fillStyle = b.kind === 'tower' ? '#f2c230' : b.h > 3 ? 'rgba(220,210,195,0.55)' : 'rgba(220,210,195,0.3)';
       map.fillRect(x0, z0, Math.max(1, x1 - x0), Math.max(1, z1 - z0));
     }
-    const zone = world.dropZone;
-    if (zone) {
-      const [x, z] = toMap(zone.x, zone.z);
-      map.strokeStyle = '#f5c45b';
+    const ring = world.ring;
+    if (ring) {
+      const [x, z] = toMap(ring.x, ring.z);
+      map.strokeStyle = '#7f9cff';
       map.lineWidth = 2;
+      map.beginPath();
+      map.arc(x, z, (ring.r / (BOUNDS.x1 - BOUNDS.x0)) * 240, 0, Math.PI * 2);
+      map.stroke();
+    }
+    for (const team of ['atk', 'def']) {
+      const zone = world.dropZones[team];
+      if (!zone) continue;
+      const [x, z] = toMap(zone.x, zone.z);
+      map.strokeStyle = TEAMS[team].color;
+      map.lineWidth = 2.5;
       map.beginPath();
       map.arc(x, z, (ROUND.siteRadius / (BOUNDS.x1 - BOUNDS.x0)) * 240, 0, Math.PI * 2);
       map.stroke();
@@ -79,11 +89,12 @@ export function createHud() {
         map.stroke();
       }
     }
-    const bomb = world.bomb;
-    if (bomb.state === 'dropped' || bomb.state === 'planted') {
+    for (const team of ['atk', 'def']) {
+      const bomb = world.bombs[team];
+      if (bomb.state !== 'dropped' && bomb.state !== 'planted') continue;
       const [x, z] = toMap(bomb.x, bomb.z);
-      map.fillStyle = bomb.state === 'planted' ? '#ff3355' : '#ff9ac8';
-      map.fillRect(x - 3, z - 3, 6, 6);
+      map.fillStyle = bomb.state === 'planted' ? '#ff3355' : TEAMS[team].color;
+      map.fillRect(x - 3.5, z - 3.5, 7, 7);
     }
   }
 
@@ -99,7 +110,7 @@ export function createHud() {
     const killer = e.killer === null ? null : world.soldiers[e.killer];
     const li = document.createElement('li');
     if (killer && (killer.isPlayer || victim.isPlayer)) li.className = 'mine';
-    const k = killer ? `<span class="${killer.team}">${killer.name}</span>` : '<span class="atk">The glitter charge</span>';
+    const k = killer ? `<span class="${killer.team}">${killer.name}</span>` : e.finisher === 'ring' ? '<span class="how">The closing ring</span>' : '<span class="atk">The glitter charge</span>';
     li.innerHTML = `${k}<span class="how">${GAG_VERBS[e.finisher || 'blast']}${e.head ? ' · head' : ''}</span><span class="${victim.team}">${victim.name}</span>`;
     el.feed.prepend(li);
     while (el.feed.children.length > 5) el.feed.lastChild.remove();
@@ -116,8 +127,9 @@ export function createHud() {
         el.hitmarker.classList.toggle('head', e.head);
       } else if (e.type === 'hit' && e.victim === viewer.id) el.damage.style.opacity = '1';
       else if (e.type === 'live') banner('Go go go', `${TEAMS[viewer.team].name}: ${TEAMS[viewer.team].role}`, 2);
-      else if (e.type === 'planted') banner('Charge planted!', `${ROUND.bombTimer} seconds to defuse it`, 3);
-      else if (e.type === 'dropZone') banner('Drop zone marked', `The charge can go down where ${world.soldiers[e.victim].name} fell`, 3);
+      else if (e.type === 'planted') banner(`${TEAMS[e.team].name} planted their charge!`, e.team === viewer.team ? `Hold it for ${ROUND.bombTimer} seconds` : `${ROUND.bombTimer} seconds to defuse it`, 3);
+      else if (e.type === 'dropZone') banner(`${TEAMS[e.team].name} drop zone marked`, `Where ${world.soldiers[e.victim].name} fell, ${TEAMS[e.team].name} can plant`, 3);
+      else if (e.type === 'ringPaused') banner('Both drop zones are out', 'The ring holds for 15 seconds, then closes between them', 3);
       else if (e.type === 'combo') banner(`${e.name.toUpperCase()}!`, e.team === 'def' ? 'Chalk, flash and sedative together: everyone near it is stunned' : 'Coins, roses and flames together: armour and gear confiscated', 3);
       else if (e.type === 'roundOver') banner(`${e.teamName} take the round`, REASONS[e.reason], 4);
       else if (e.type === 'roundStart') {
@@ -137,9 +149,13 @@ export function createHud() {
       if (pips.children.length !== squad.length) pips.innerHTML = squad.map(() => '<i></i>').join('');
       squad.forEach((s, i) => pips.children[i].classList.toggle('dead', !s.alive));
     }
-    const planted = world.phase === 'planted';
-    el.timer.textContent = fmtClock(planted ? world.bomb.timer : world.phase === 'over' || world.phase === 'match' ? 0 : world.phaseTime);
-    el.phase.textContent = { freeze: 'BUY', live: 'LIVE', planted: 'CHARGE', over: 'ROUND OVER', match: 'MATCH OVER' }[world.phase];
+    // The clock shows the soonest planted charge while one ticks.
+    const ticking = plantedBombs(world).sort((a, b) => a.timer - b.timer)[0];
+    const planted = !!ticking && world.phase === 'live';
+    el.timer.textContent = fmtClock(planted ? ticking.timer : world.phase === 'over' || world.phase === 'match' ? 0 : world.phaseTime);
+    const ring = world.ring;
+    const ringNote = ring && world.phase === 'live' ? (world.time < ring.startAt ? `RING IN ${Math.ceil(ring.startAt - world.time)}S` : 'RING CLOSING') : null;
+    el.phase.textContent = planted ? `${TEAMS[ticking.team].short} CHARGE` : ringNote || { freeze: 'BUY', live: 'LIVE', over: 'ROUND OVER', match: 'MATCH OVER' }[world.phase];
     el.clock.classList.toggle('planted', planted);
     el.money.textContent = me.money;
     el.hp.textContent = Math.max(0, Math.round(viewer.health));
@@ -153,7 +169,7 @@ export function createHud() {
     el.ammo.classList.toggle('empty', gun.mag === 0);
     el.grenadeName.textContent = GRENADES[viewer.role.id].name;
     el.grenades.textContent = viewer.grenades;
-    el.status.textContent = viewer.stunned > 0 ? 'Stunned by a team combo!' : viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : '';
+    el.status.textContent = viewer.outside ? 'Outside the ring: get in!' : viewer.stunned > 0 ? 'Stunned by a team combo!' : viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : '';
     // The crosshair opens with the spread.
     const gap = 6 + Math.min(60, currentSpread(viewer) * 900);
     const arms = el.crosshair.children;
@@ -168,13 +184,15 @@ export function createHud() {
     el.damage.style.opacity = String(Math.max(0, Number(el.damage.style.opacity || 0) - dt * 1.5));
     el.flashout.style.opacity = String(Math.min(1, viewer.blind / 1.6));
     // Hints and the action bar.
-    const bomb = world.bomb;
+    const mine = world.bombs[me.team];
+    const theirs = world.bombs[me.team === 'atk' ? 'def' : 'atk'];
     let hint = '';
     if (viewer === me && me.alive) {
-      if (me.hasBomb && inDropZone(world, me) && world.phase === 'live') hint = 'Hold E to plant the glitter charge';
-      else if (me.hasBomb) hint = world.dropZone ? 'Carry the glitter charge to the drop zone' : 'You carry the charge: drop one of the Night Shift to mark where it goes';
-      else if (me.team === 'def' && !world.dropZone && world.phase === 'live') hint = 'Stay alive: where the first of you falls, they can plant';
-      else if (me.team === 'def' && planted && Math.hypot(bomb.x - me.pos.x, bomb.z - me.pos.z) < 1.6) hint = 'Hold E to defuse';
+      if (theirs.state === 'planted' && Math.hypot(theirs.x - me.pos.x, theirs.z - me.pos.z) < 1.6) hint = 'Hold E to defuse their charge';
+      else if (theirs.state === 'planted') hint = 'Their charge is ticking: find it and defuse it';
+      else if (me.hasBomb && inDropZone(world, me) && world.phase === 'live') hint = 'Hold E to plant your charge';
+      else if (me.hasBomb) hint = world.dropZones[me.team] ? 'Carry your charge to your drop zone' : 'You carry the charge: take one of them down to mark where it goes';
+      else if (world.phase === 'live' && !world.dropZones[me.team]) hint = 'Take one of them down: where they fall, your team can plant';
       if (world.phase === 'freeze') hint = 'Press B to buy';
     }
     el.hint.textContent = hint;
@@ -182,7 +200,7 @@ export function createHud() {
     el.progress.hidden = !acting;
     if (acting) {
       el.progressLabel.textContent = acting === 'plant' ? 'Planting the charge' : 'Defusing';
-      const share = acting === 'plant' ? bomb.plant / ROUND.plantTime : bomb.defuse / ROUND.defuseTime;
+      const share = acting === 'plant' ? mine.plant / ROUND.plantTime : theirs.defuse / ROUND.defuseTime;
       el.progressBar.style.width = `${Math.min(100, share * 100)}%`;
     }
     el.spectate.hidden = me.alive || viewer === me;

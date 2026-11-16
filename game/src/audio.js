@@ -2,6 +2,7 @@
 // left or right and fading with distance; footsteps, the bolt, reloads, hit ticks, the charge's
 // quickening beep, the glitter blast, flashes, smoke, and round stingers. Sound starts on the
 // first click (browsers require it).
+import { plantedBombs } from './sim/world.js';
 const A = { ctx: null, master: null, muted: false, noise: null };
 
 const REPORT = {
@@ -158,9 +159,11 @@ export function playEvents(world, events, listener) {
 
 /** The planted charge's beep, quickening as the timer runs down. */
 export function chargeBeep(world, listener, dt) {
-  if (!A.ctx || A.muted || world.bomb.state !== 'planted') return;
+  if (!A.ctx || A.muted) return;
+  const bomb = plantedBombs(world).sort((a, b) => a.timer - b.timer)[0];
+  if (!bomb) return;
   A.beep = (A.beep || 0) - dt;
   if (A.beep > 0) return;
-  A.beep = Math.max(0.12, world.bomb.timer / 40);
-  tone(place(listener, world.bomb.x, world.bomb.z, 1.2), A.ctx.currentTime, 1900, 0.06, 'square', 0.15);
+  A.beep = Math.max(0.12, bomb.timer / 40);
+  tone(place(listener, bomb.x, bomb.z, 1.2), A.ctx.currentTime, 1900, 0.06, 'square', 0.15);
 }

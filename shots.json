@@ -1,6 +1,6 @@
 [
   { "name": "1-play.jpg", "query": "?shot=play&team=def&role=nurse&seed=13&t=41" },
-  { "name": "2-play.jpg", "query": "?shot=play&team=atk&role=playboy&seed=11&t=24.4" },
+  { "name": "2-start.jpg", "query": "?shot=start&t=3" },
   { "name": "3-buy.jpg", "query": "?shot=buy&team=atk&role=chef&seed=5" },
   { "name": "4-end.jpg", "query": "?shot=end&team=def&role=teacher&seed=8" }
 ]

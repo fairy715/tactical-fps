@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { DECOR, SOLIDS } from '../sim/map.js';
 import * as T from './textures.js';
+import { toonify } from './toon.js';
 
 const BUILDING_LOOK = {
   school: ['#9a4a3a', '#e8dcc6', '#2c3a4a', '#ffd98e', "ST. MERIDIAN SCHOOL", '#f6e7c4', 'rgba(60,20,10,0.25)'],
@@ -37,7 +38,9 @@ export function createStage(host) {
   addLights(scene);
   addGround(scene);
   addSolids(scene);
-  addDecor(scene);
+  const decor = new THREE.Group();
+  addDecor(decor);
+  scene.add(toonify(decor, 0.03));
   addSkyline(scene);
 
   function resize() {
@@ -95,7 +98,7 @@ function materialFor(kind, id, cache) {
   else if (kind === 'tower') mat = new THREE.MeshStandardMaterial({ color: '#56606b', roughness: 0.5, metalness: 0.6 });
   else if (kind === 'step') mat = new THREE.MeshStandardMaterial({ color: '#7b848e', roughness: 0.6, metalness: 0.5 });
   else if (kind === 'rail') mat = new THREE.MeshStandardMaterial({ color: '#f2c230', roughness: 0.4, metalness: 0.3 });
-  else if (kind === 'screen') mat = new THREE.MeshStandardMaterial({ color: '#2f3b52', roughness: 0.8 });
+  else if (kind === 'screen') mat = new THREE.MeshStandardMaterial({ map: T.facade('#6a86c9', '#f5c45b', '#6a86c9', '#6a86c9', 'SUNDOWN PLAZA', '#fff3d6', null), roughness: 0.8 });
   else if (kind === 'salt') mat = new THREE.MeshStandardMaterial({ color: '#f1efe9', roughness: 1 });
   else mat = new THREE.MeshStandardMaterial({ color: '#4a4652', roughness: 0.9 });
   cache[key] = mat;
@@ -112,6 +115,7 @@ function addSolids(scene) {
     mesh.position.set((b.x0 + b.x1) / 2, b.y0 + h / 2, (b.z0 + b.z1) / 2);
     mesh.castShadow = b.kind !== 'perimeter';
     mesh.receiveShadow = true;
+    if (b.kind !== 'perimeter') toonify(mesh, b.kind === 'rail' || b.kind === 'step' ? 0.02 : 0.05);
     scene.add(mesh);
     if (b.kind === 'monument') addStatue(scene, mesh.position.x, b.h, mesh.position.z);
     if (b.kind === 'tower') addScaffold(scene, b);

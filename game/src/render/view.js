@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { createStage } from './stage.js';
 import { buildSoldier, poseSoldier } from './characters.js';
 import { buildGun } from './guns.js';
+import { toonify } from './toon.js';
 import { createEffects } from './effects.js';
 import { createFinishers } from './finishers.js';
 import { soldierEye } from '../sim/world.js';
@@ -40,7 +41,7 @@ export function createView(host, world) {
   function setViewGun(roleId) {
     if (vmRole === roleId) return;
     if (vmGun) vmHolder.remove(vmGun);
-    vmGun = buildGun(roleId);
+    vmGun = toonify(buildGun(roleId), 0.005);
     vmGun.position.set(0.26, -0.27, -0.62);
     vmGun.rotation.y = -0.05;
     vmGun.scale.setScalar(0.85);
@@ -116,6 +117,45 @@ export function createView(host, world) {
     }
   }
 
+  /**
+   * The title's line-up: the six careers on the plaza before the monument, the Gentlemen on the
+   * left and the Night Shift on the right, idling, each holding its rifle.
+   */
+  function renderLineup(time) {
+    finishers.update(time);
+    world.soldiers.forEach((s, i) => {
+      const fig = figures[i];
+      // Gentlemen in the back row, Night Shift in front, staggered so every face shows.
+      const back = i < 3;
+      const col = (i % 3) - 1;
+      fig.root.visible = true;
+      fig.root.position.set(4.3 + col * 1.4 + (back ? 0.7 : 0), 0, back ? 11.2 : 13.2);
+      // Turned to face the camera.
+      fig.root.rotation.set(0, Math.PI - 0.5 - col * 0.06, 0);
+      const { rig } = fig;
+      rig.body.position.set(0, Math.abs(Math.sin(time * 2 + i)) * 0.03, 0);
+      rig.body.rotation.set(0, 0, 0);
+      rig.hips.position.y = 0.9;
+      rig.legL.rotation.x = rig.legR.rotation.x = 0;
+      rig.legL.scale.y = rig.legR.scale.y = 1;
+      rig.torso.rotation.set(0, Math.sin(time * 0.8 + i) * 0.12, 0);
+      rig.head.rotation.set(-0.08, Math.sin(time * 0.6 + i * 2) * 0.2, 0);
+      // Rifle held across the chest, muzzle up.
+      rig.armL.rotation.set(-1.0, 0, 0.5);
+      rig.armR.rotation.set(-0.7, 0, -0.3);
+      fig.gun.rotation.set(0.9, 0.5, 0.3);
+      fig.setFace(i % 2 ? 'normal' : 'love');
+    });
+    effects.update(world, 0.016, time);
+    // Framed so the line-up fills the right half, clear of the title panel on the left.
+    camera.position.set(1.5, 1.4, 17.5);
+    camera.rotation.set(-0.04, -0.25, 0);
+    camera.fov = BASE_FOV * 0.62;
+    camera.updateProjectionMatrix();
+    renderer.clear();
+    renderer.render(scene, camera);
+  }
+
   /** Points the view at a new match: the same six careers, so the figures carry over. */
   function rebind(next) {
     world = next;
@@ -123,5 +163,5 @@ export function createView(host, world) {
     for (const fig of figures) fig.root.visible = true;
   }
 
-  return { render, react, rebind, renderer, camera };
+  return { render, renderLineup, react, rebind, renderer, camera };
 }

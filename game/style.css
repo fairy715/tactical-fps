@@ -93,6 +93,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--night)
 
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(9, 10, 18, 0.62); backdrop-filter: blur(2px); }
 .overlay.clear { background: rgba(9, 10, 18, 0.25); pointer-events: none; }
+/* The title sits on the left so the line-up of careers shows on the right. */
+#title { place-items: center start; padding-left: 3vw; background: linear-gradient(90deg, rgba(9, 10, 18, 0.88) 0 40%, rgba(9, 10, 18, 0) 62%); backdrop-filter: none; }
+#title .panel { width: min(560px, 100%); background: transparent; border: 0; padding: 6px; }
+#title .teams { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+#title .panel h1 { font-size: 44px; margin: 2px 0 6px; }
+#title .panel h2 { font-size: 16px; }
+#title .lede { font-size: 13px; margin-bottom: 12px; }
+#title .role { grid-template-columns: 34px 1fr; padding: 6px 8px; }
+#title .role .face { width: 34px; height: 34px; }
+#title .role span span { font-size: 11px; }
+#title .keys { font-size: 11px; margin-top: 12px; }
 .overlay[hidden] { display: none; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px 30px; width: min(460px, 100%); }
 .panel.wide { width: min(980px, 100%); }

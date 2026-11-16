@@ -1,16 +1,17 @@
-// The match: one state object holding every soldier, the charge, thrown gear, the round clock,
+// The match: one state object holding every soldier, both charges, thrown gear, the round clock,
 // the score and the economy, stepped at a fixed rate. Commands come in (the player's from the
 // keyboard and mouse, each bot's from its brain), events come out (shots, hits, kills, plants,
-// round ends) for the renderer, the HUD and the sound to react to. Nothing here draws.
+// round ends) for the renderer, the HUD and the sound to react to. Nothing here draws. The
+// objective (charges, drop zones, the ring) lives in objective.js.
 import { ECONOMY, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLE_ORDER, ROUND, TEAMS } from './config.js';
 import { createSoldier, eyePos, moveSoldier, respawn } from './actors.js';
 import { createBrain, botBuy, planRound, updateBot } from './bots.js';
-import { applyHit, killSoldier, traceShot } from './combat.js';
+import { applyHit, traceShot } from './combat.js';
 import { throwGrenade, updateGrenades } from './grenades.js';
 import { ROUTES, SPAWNS } from './map.js';
+import { checkRound, dropBomb, enemyOf, markDropZones, pickUpBombs, resetObjective, updateRing, useAction } from './objective.js';
 import { createRng } from './rng.js';
-import { fireGun, settleRecoil, startReload, tickGun } from './weapons.js';
-import { createGun } from './weapons.js';
+import { createGun, fireGun, settleRecoil, startReload, tickGun } from './weapons.js';
 
 const shotDir = { x: 0, y: 0, z: 0 };
 const shotHit = { t: 0, victim: null, head: false, x: 0, y: 0, z: 0, sx: 0, sy: 0, sz: 0 };
@@ -24,27 +25,27 @@ export function createWorld(options) {
   const world = {
     rng: createRng(options.seed || 1),
     time: 0,
-    phase: 'freeze', // freeze, live, planted, over, match
+    phase: 'freeze', // freeze, live, over, match
     phaseTime: ROUND.freeze,
     round: 0,
     score: { atk: 0, def: 0 },
     lossStreak: { atk: 0, def: 0 },
     winner: null,
-    lastRound: null,
     soldiers: [],
     player: null,
     grenades: [],
     smokes: [],
+    zones: [], // lingering grenade areas: fire and sedative
     events: [],
-    bomb: { state: 'carried', carrier: null, x: 0, y: 0, z: 0, site: null, timer: 0, plant: 0, defuse: 0, defuser: null, planter: null },
+    bombs: null, // each team's charge
+    dropZones: null, // each team's drop zone, once the other team loses someone
+    ring: null, // the closing ring: { x, z, r, minR, startAt }
     plan: { site: 'A', lane: 0 },
     routes: ROUTES,
     economy: ECONOMY,
-    buy: (s, item) => buy(world, s, item),
-    zones: [],
     combo: [], // recent grenade bursts, for the team combos
     comboCalls: { atk: null, def: null }, // where each team's bots should land their next throw
-    dropZone: null, // where the charge may be planted this round, once a Night Shift member falls
+    buy: (s, item) => buy(world, s, item),
     botThrow: (s) => throwGrenade(world, s),
     dropBomb: (s) => dropBomb(world, s),
   };
@@ -72,19 +73,13 @@ function startRound(world) {
   world.zones = [];
   world.combo = [];
   world.comboCalls = { atk: null, def: null };
-  world.dropZone = null;
   for (const team of ['atk', 'def']) {
-    const squad = world.soldiers.filter((s) => s.team === team);
-    squad.forEach((s, i) => {
+    world.soldiers.filter((s) => s.team === team).forEach((s, i) => {
       const [x, z, yaw] = SPAWNS[team][i % SPAWNS[team].length];
       respawn(s, x, z, yaw, s.alive && world.round > 1);
     });
   }
-  // The charge goes to a random Gentleman.
-  const atk = world.soldiers.filter((s) => s.team === 'atk');
-  const carrier = atk[world.rng.int(0, atk.length - 1)];
-  carrier.hasBomb = true;
-  Object.assign(world.bomb, { state: 'carried', carrier: carrier.id, site: null, timer: 0, plant: 0, defuse: 0, defuser: null, planter: null });
+  resetObjective(world);
   for (const s of world.soldiers) if (s.brain) botBuy(world, s);
   planRound(world);
   world.events.push({ type: 'roundStart', round: world.round });
@@ -117,18 +112,16 @@ export function buy(world, s, item) {
   return null;
 }
 
-function dropBomb(world, s) {
-  s.hasBomb = false;
-  Object.assign(world.bomb, { state: 'dropped', carrier: null, x: s.pos.x, y: s.pos.y, z: s.pos.z });
-  world.events.push({ type: 'bombDropped', x: s.pos.x, z: s.pos.z });
-}
+const IDLE = { fwd: 0, side: 0, crouch: false, walk: false, jump: false };
 
-/** The player's command for this step: { fwd, side, crouch, walk, jump, fire, scope, reload, use, smoke, flash }. */
+/**
+ * One soldier's command for this step: { fwd, side, crouch, walk, jump, fire, firePressed, scope,
+ * reload, use, grenade }. Returns a round result when a defuse finishes it, else null.
+ */
 function applyCommand(world, s, cmd, dt) {
-  if (!s.alive) return;
-  const frozen = world.phase === 'freeze' || world.phase === 'match';
-  const step = moveSoldier(s, frozen ? IDLE : cmd, dt);
-  if (step) world.events.push({ type: 'step', id: s.id, x: s.pos.x, y: s.pos.y, z: s.pos.z });
+  if (!s.alive) return null;
+  const frozen = world.phase !== 'live';
+  if (moveSoldier(s, frozen ? IDLE : cmd, dt)) world.events.push({ type: 'step', id: s.id, x: s.pos.x, y: s.pos.y, z: s.pos.z });
   const gun = s.gun;
   if (tickGun(gun, dt) === 'reloaded') world.events.push({ type: 'reloaded', id: s.id });
   settleRecoil(s, dt);
@@ -137,7 +130,7 @@ function applyCommand(world, s, cmd, dt) {
   s.charmed = Math.max(0, s.charmed - dt);
   s.stunned = Math.max(0, s.stunned - dt);
   s.burning = Math.max(0, s.burning - dt);
-  if (frozen || s.stunned > 0) return;
+  if (frozen || s.stunned > 0) return null;
   if (cmd.reload && startReload(gun)) {
     s.scoped = false;
     world.events.push({ type: 'reload', id: s.id });
@@ -145,89 +138,32 @@ function applyCommand(world, s, cmd, dt) {
   if (cmd.scope !== undefined) s.scoped = cmd.scope && gun.reloading <= 0;
   // Sedated soldiers cannot steady a scope; charmed ones cannot bring themselves to shoot.
   if (s.slowed > 0 || s.charmed > 0) s.scoped = false;
-  if (cmd.fire && s.charmed <= 0) {
-    if (gun.mag <= 0 && gun.reloading <= 0) {
-      if (startReload(gun)) world.events.push({ type: 'reload', id: s.id });
-      else if (s.isPlayer && cmd.firePressed) world.events.push({ type: 'dry', id: s.id });
-    } else if (fireGun(s, world.rng, shotDir)) {
-      traceShot(world, s, shotDir, shotHit);
-      world.events.push({ type: 'shot', id: s.id, role: s.role.id, sx: shotHit.sx, sy: shotHit.sy, sz: shotHit.sz, x: shotHit.x, y: shotHit.y, z: shotHit.z, victim: shotHit.victim ? shotHit.victim.id : null });
-      // Gunfire carries: every bot within earshot turns toward it.
-      for (const o of world.soldiers) if (o.brain && o.alive && o.team !== s.team && Math.hypot(o.pos.x - s.pos.x, o.pos.z - s.pos.z) < 70) o.brain.alertAt(world, s.pos.x, s.pos.z, s.pos.y);
-      if (shotHit.victim) applyHit(world, s, shotHit.victim, shotHit.head, gun.def);
-      // A bolt-action drops out of the scope to cycle.
-      if (gun.def.rpm < 60 && s.isPlayer) s.scoped = false;
-    }
-  }
+  if (cmd.fire && s.charmed <= 0) fire(world, s, cmd);
   if (cmd.grenade) throwGrenade(world, s);
-  useAction(world, s, cmd.use, dt);
+  return useAction(world, s, cmd.use, dt);
 }
 
-const IDLE = { fwd: 0, side: 0, crouch: false, walk: false, jump: false };
-
-/**
- * The drop zone: no site is fixed. Where the first of the Night Shift falls in a round, the
- * glitter charge can be planted, on the same floor (a tower deck counts).
- */
-export function inDropZone(world, s) {
-  const z = world.dropZone;
-  return !!z && Math.hypot(z.x - s.pos.x, z.z - s.pos.z) < ROUND.siteRadius && Math.abs(z.y - s.pos.y) < 1.5;
-}
-
-function markDropZone(world) {
-  if (world.dropZone) return;
-  for (const e of world.events) {
-    if (e.type !== 'kill') continue;
-    const v = world.soldiers[e.victim];
-    if (v.team !== 'def') continue;
-    world.dropZone = { name: `where ${v.name} fell`, x: v.pos.x, y: v.pos.y, z: v.pos.z, by: v.id };
-    world.events.push({ type: 'dropZone', x: v.pos.x, y: v.pos.y, z: v.pos.z, victim: v.id });
+function fire(world, s, cmd) {
+  const gun = s.gun;
+  if (gun.mag <= 0 && gun.reloading <= 0) {
+    if (startReload(gun)) world.events.push({ type: 'reload', id: s.id });
+    else if (s.isPlayer && cmd.firePressed) world.events.push({ type: 'dry', id: s.id });
     return;
   }
-}
-
-/** Planting and defusing: hold the use key, stand still, keep at it. */
-function useAction(world, s, using, dt) {
-  const bomb = world.bomb;
-  s.action = null;
-  if (!using || !s.onGround) {
-    if (bomb.defuser === s.id) {
-      bomb.defuser = null;
-      bomb.defuse = 0;
-    }
-    if (s.hasBomb) bomb.plant = 0;
-    return;
+  if (!fireGun(s, world.rng, shotDir)) return;
+  traceShot(world, s, shotDir, shotHit);
+  world.events.push({ type: 'shot', id: s.id, role: s.role.id, sx: shotHit.sx, sy: shotHit.sy, sz: shotHit.sz, x: shotHit.x, y: shotHit.y, z: shotHit.z, victim: shotHit.victim ? shotHit.victim.id : null });
+  // Gunfire carries: every enemy bot within earshot turns toward it.
+  for (const o of world.soldiers) {
+    if (o.brain && o.alive && o.team !== s.team && Math.hypot(o.pos.x - s.pos.x, o.pos.z - s.pos.z) < 70) o.brain.alertAt(world, s.pos.x, s.pos.z, s.pos.y);
   }
-  if (s.team === 'atk' && s.hasBomb && world.phase === 'live') {
-    if (!inDropZone(world, s)) return;
-    s.action = 'plant';
-    bomb.plant += dt;
-    if (bomb.plant >= ROUND.plantTime) {
-      s.hasBomb = false;
-      Object.assign(bomb, { state: 'planted', carrier: null, x: s.pos.x, y: s.pos.y, z: s.pos.z, site: world.dropZone.name, timer: ROUND.bombTimer, planter: s.id });
-      s.money = Math.min(ECONOMY.max, s.money + ECONOMY.plantBonus);
-      world.phase = 'planted';
-      world.events.push({ type: 'planted', site: world.dropZone.name, by: s.id });
-    }
-    return;
-  }
-  if (s.team === 'def' && bomb.state === 'planted' && Math.hypot(bomb.x - s.pos.x, bomb.z - s.pos.z) < 1.6) {
-    if (bomb.defuser !== null && bomb.defuser !== s.id) return;
-    s.action = 'defuse';
-    bomb.defuser = s.id;
-    bomb.defuse += dt;
-    if (bomb.defuse >= ROUND.defuseTime) {
-      bomb.state = 'defused';
-      s.money = Math.min(ECONOMY.max, s.money + ECONOMY.defuseBonus);
-      world.events.push({ type: 'defused', by: s.id });
-      endRound(world, 'def', 'defused');
-    }
-  }
+  if (shotHit.victim) applyHit(world, s, shotHit.victim, shotHit.head, gun.def);
+  // A bolt-action drops out of the scope to cycle.
+  if (gun.def.rpm < 60 && s.isPlayer) s.scoped = false;
 }
 
 function endRound(world, winner, reason) {
-  if (world.phase === 'over' || world.phase === 'match') return;
-  const loser = winner === 'atk' ? 'def' : 'atk';
+  const loser = enemyOf(winner);
   world.score[winner] += 1;
   world.lossStreak[winner] = 0;
   world.lossStreak[loser] += 1;
@@ -237,37 +173,15 @@ function endRound(world, winner, reason) {
     if (s.team === winner) pay = objective ? ECONOMY.winObjective : ECONOMY.winElim;
     else {
       pay = Math.min(ECONOMY.lossMax, ECONOMY.lossBase + ECONOMY.lossStep * (world.lossStreak[loser] - 1));
-      if (s.team === 'atk' && world.bomb.planter !== null) pay += ECONOMY.plantTeamBonus;
+      if (world.bombs[s.team].planter !== null) pay += ECONOMY.plantTeamBonus;
     }
     s.money = Math.min(ECONOMY.max, s.money + pay);
   }
-  world.lastRound = { winner, reason, round: world.round };
   const done = world.score[winner] >= ROUND.winsToTake;
   world.phase = done ? 'match' : 'over';
   world.phaseTime = ROUND.over;
   if (done) world.winner = winner;
   world.events.push({ type: done ? 'matchOver' : 'roundOver', winner, reason, teamName: TEAMS[winner].name });
-}
-
-function checkRound(world) {
-  const alive = (team) => world.soldiers.some((s) => s.team === team && s.alive);
-  if (world.phase === 'live') {
-    if (!alive('atk')) return endRound(world, 'def', 'eliminated');
-    if (!alive('def')) return endRound(world, 'atk', 'eliminated');
-    if (world.phaseTime <= 0) return endRound(world, 'def', 'time');
-  } else if (world.phase === 'planted') {
-    if (!alive('def')) return endRound(world, 'atk', 'eliminated');
-    if (world.bomb.timer <= 0) {
-      world.bomb.state = 'detonated';
-      world.events.push({ type: 'detonated', x: world.bomb.x, z: world.bomb.z, site: world.bomb.site });
-      // The glitter charge knocks out anyone caught close to it.
-      for (const s of world.soldiers) {
-        if (s.alive && Math.hypot(s.pos.x - world.bomb.x, s.pos.z - world.bomb.z) < 9) killSoldier(world, s, null, false);
-      }
-      return endRound(world, 'atk', 'detonated');
-    }
-  }
-  return null;
 }
 
 /**
@@ -282,13 +196,14 @@ export function stepWorld(world, playerCmd, dt) {
     world.phaseTime = ROUND.live;
     world.events.push({ type: 'live' });
   }
-  if (world.phase === 'planted') world.bomb.timer -= dt;
   if (world.phase === 'over' && world.phaseTime <= 0) {
     startRound(world);
     return;
   }
 
+  let result = null;
   for (const s of world.soldiers) {
+    let cmd = null;
     if (s.brain) {
       updateBot(world, s, dt);
       const b = s.brain;
@@ -299,28 +214,18 @@ export function stepWorld(world, playerCmd, dt) {
       BOT_CMD.jump = b.intent.jump;
       BOT_CMD.fire = b.wantFire;
       BOT_CMD.use = b.wantUse;
-      applyCommand(world, s, BOT_CMD, dt);
-    } else if (s.isPlayer) {
-      applyCommand(world, s, playerCmd, dt);
-    }
-  }
-
-  // Picking up a dropped charge.
-  const bomb = world.bomb;
-  if (bomb.state === 'dropped') {
-    for (const s of world.soldiers) {
-      if (s.team === 'atk' && s.alive && Math.hypot(s.pos.x - bomb.x, s.pos.z - bomb.z) < 1.3) {
-        s.hasBomb = true;
-        bomb.state = 'carried';
-        bomb.carrier = s.id;
-        world.events.push({ type: 'bombTaken', id: s.id });
-        break;
-      }
-    }
+      cmd = BOT_CMD;
+    } else if (s.isPlayer) cmd = playerCmd;
+    if (cmd) result = applyCommand(world, s, cmd, dt) || result;
   }
   updateGrenades(world, dt);
-  if (world.phase === 'live') markDropZone(world);
-  if (world.phase === 'live' || world.phase === 'planted') checkRound(world);
+  if (world.phase !== 'live') return;
+  pickUpBombs(world);
+  markDropZones(world);
+  for (const s of world.soldiers) s.outside = false;
+  updateRing(world, dt);
+  result = result || checkRound(world, dt);
+  if (result) endRound(world, result.winner, result.reason);
 }
 
 const BOT_CMD = { fwd: 0, side: 0, crouch: false, walk: false, jump: false, fire: false, use: false };
@@ -329,3 +234,5 @@ const BOT_CMD = { fwd: 0, side: 0, crouch: false, walk: false, jump: false, fire
 export function soldierEye(s) {
   return eyePos(s, eye);
 }
+
+export { inDropZone, plantedBombs } from './objective.js';

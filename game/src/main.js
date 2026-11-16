@@ -1,6 +1,6 @@
-// Office Hours: boots the page. The title lets you pick a side and a career while a bots-only match
-// plays behind it; then the match runs a fixed-step simulation (60 steps a second, apart from the
-// frame rate) and draws each frame from your eyes, or a teammate's once you are out.
+// Office Hours: boots the page. The title lets you pick a side and a career beside a line-up of
+// all six; then the match runs a fixed-step simulation (60 steps a second, apart from the frame
+// rate) and draws each frame from your eyes, or a teammate's once you are out.
 import { BUY_LIST, TICK } from './sim/config.js';
 import { createWorld, stepWorld } from './sim/world.js';
 import { createView } from './render/view.js';
@@ -27,7 +27,7 @@ function newMatch(playerTeam, playerRole, seed) {
   else app.view.rebind(app.world);
 }
 
-// The title: a bots-only match behind the picker.
+// The title: the six careers lined up beside the picker (a bots-only world holds their figures).
 newMatch(null, null, 20261116);
 hud.buildPicker((team, role) => {
   app.pick = { team, role };
@@ -114,7 +114,7 @@ function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000);
   last = now;
   const world = app.world;
-  if (app.mode !== 'paused' && app.mode !== 'end') {
+  if (app.mode === 'play') {
     acc += dt;
     while (acc >= TICK) {
       const me = world.player;
@@ -137,8 +137,6 @@ function frame(now) {
         document.exitPointerLock();
         setTimeout(() => hud.showEnd(world), 1200);
       }
-      // The title's demo match starts over when it ends.
-      if (!me && world.phase === 'match') newMatch(null, null, Math.floor(Math.random() * 1e9));
       events.length = 0;
       time += TICK;
     }
@@ -148,7 +146,8 @@ function frame(now) {
     hud.update(app.world, eye, dt);
     chargeBeep(app.world, eye, dt);
   }
-  app.view.render(eye, dt, time);
+  if (app.mode === 'title') app.view.renderLineup(time);
+  else app.view.render(eye, dt, time);
   requestAnimationFrame(frame);
 }
 

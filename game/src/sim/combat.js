@@ -68,14 +68,15 @@ export function applyHit(world, shooter, victim, head, def) {
   if (victim.health <= 0) killSoldier(world, victim, shooter, head);
 }
 
-export function killSoldier(world, victim, killer, head) {
+/** A soldier falls. killer may be null, with cause naming what did it ('blast', 'ring'). */
+export function killSoldier(world, victim, killer, head, cause = 'blast') {
   victim.health = 0;
   victim.alive = false;
   victim.deaths += 1;
   victim.scoped = false;
   victim.action = null;
   victim.deathTime = world.time;
-  victim.killedBy = killer ? killer.role.finisher : null;
+  victim.killedBy = killer ? killer.role.finisher : cause;
   if (victim.hasBomb) world.dropBomb(victim);
   if (killer && killer.team !== victim.team) {
     killer.kills += 1;
