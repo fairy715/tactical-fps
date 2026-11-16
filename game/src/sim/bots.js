@@ -5,7 +5,6 @@
 // posts (tower decks included), rotate toward trouble and retake a planted site to defuse.
 import { BOT, GRENADES } from './config.js';
 
-const GRENADE_KIND = Object.fromEntries(Object.entries(GRENADES).map(([role, g]) => [role, g.kind]));
 import { eyePos, hitShape } from './actors.js';
 import { lineOfSight } from './collision.js';
 import { HOLDS, SITES } from './map.js';
@@ -115,10 +114,10 @@ function perceive(world, s, b) {
     aimAt.x = o.pos.x;
     aimAt.z = o.pos.z;
     aimAt.y = shape.headY;
-    let seen = lineOfSight(eye, aimAt, world.smokes);
+    let seen = lineOfSight(eye, aimAt, world.smokes, world.walls);
     if (!seen) {
       aimAt.y = shape.top - 0.35;
-      seen = lineOfSight(eye, aimAt, world.smokes);
+      seen = lineOfSight(eye, aimAt, world.smokes, world.walls);
     }
     if (!seen) continue;
     const score = d * (o === b.target ? 0.6 : 1) * (o.isPlayer ? 0.9 : 1);
@@ -294,6 +293,15 @@ function doTask(world, s, b, dt) {
     b.goal = null;
   }
 
+  // Hurt and out of a fight: drink a teammate's cola if one stands close by.
+  if (s.health < 70 && !b.target) {
+    for (const p of world.pickups) {
+      if (p.team !== s.team || Math.hypot(p.x - s.pos.x, p.z - s.pos.z) > 14) continue;
+      setGoal(world, s, b, p.x, p.z, p.y);
+      followPath(s, b, dt);
+      return;
+    }
+  }
   // The ring is closing (or about to) and this bot is near its edge or outside: get inside.
   const ring = world.ring;
   if (ring && world.time > ring.startAt - 5 && Math.hypot(s.pos.x - ring.x, s.pos.z - ring.z) > ring.r - 6) {
@@ -376,8 +384,8 @@ function doTask(world, s, b, dt) {
       const lane = lanes[task.lane % lanes.length];
       setGoal(world, s, b, site.x + (s.hasBomb ? 0 : (world.rng.next() - 0.5) * 8), site.z + (s.hasBomb ? 0 : (world.rng.next() - 0.5) * 6), 0, lane.slice(0, -1));
     }
-    // The Chef burns out the site's defenders on the way in.
-    if (s.role.id === 'chef' && s.grenades > 0 && Math.hypot(site.x - s.pos.x, site.z - s.pos.z) < 24) {
+    // A ground-denial thrower (the Chef's fire) burns out the lane's far end on the way in.
+    if (GRENADES[s.role.id].kind === 'fire' && s.grenades > 0 && Math.hypot(site.x - s.pos.x, site.z - s.pos.z) < 24) {
       if (lobAt(world, s, b, site.x, site.z, dt)) return;
     }
     // Arrived with no drop zone yet: hold here and hunt from cover until one falls.
@@ -405,15 +413,29 @@ function lobAt(world, s, b, x, z, dt) {
   return true;
 }
 
+const supportAt = { x: 0, z: 0 };
+
 /** Whether a bot should spend its grenade on what it just saw or heard, and where. */
 function grenadeTarget(world, s, b) {
   if (s.grenades <= 0 || world.time < b.nextThrow) return null;
   // A teammate's grenade just landed: land this one on the same spot for the team combo.
+  const own = GRENADES[s.role.id];
+  // Support throws help the side: the code wall goes up between the bot and the foe it is
+  // fighting, the milk a few steps ahead on the way to that foe, where the side will be moving.
+  if (own.support) {
+    if (!b.target) return null;
+    const dx = b.target.pos.x - s.pos.x;
+    const dz = b.target.pos.z - s.pos.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const k = own.kind === 'code' ? 7 / d : 6.5 / d;
+    supportAt.x = s.pos.x + dx * k;
+    supportAt.z = s.pos.z + dz * k;
+    return supportAt;
+  }
   const call = world.comboCalls[s.team];
-  if (call && world.time - call.t < 3 && !call.kinds.includes(GRENADE_KIND[s.role.id])) return call;
-  const kind = s.role.id;
-  // The Playboy charms a foe that is in view; the rest lob at what they remember or heard.
-  if (kind === 'playboy') return b.target ? b.target.pos : null;
+  if (call && world.time - call.t < 3 && !call.kinds.includes(own.kind)) return call;
+  // The charm needs a foe in view; the rest lob at what they remember or heard.
+  if (own.kind === 'charm') return b.target ? b.target.pos : null;
   // Open with gear on a foe in mid range, which also calls the team combo.
   if (b.target) {
     const d = Math.hypot(b.target.pos.x - s.pos.x, b.target.pos.z - s.pos.z);

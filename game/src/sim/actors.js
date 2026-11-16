@@ -31,6 +31,7 @@ export function createSoldier(id, team, roleId, isPlayer) {
     grenades: 0, // the career's own grenade, two at most
     blind: 0, // seconds of photocopier flash left
     slowed: 0, // seconds of sedative left
+    boosted: 0, // seconds of milk-puddle speed left
     charmed: 0, // seconds of rose-bouquet charm left: no shooting
     stunned: 0, // seconds of Staff Meeting left: no moving, no shooting
     burning: 0,
@@ -67,7 +68,7 @@ export function respawn(s, x, z, yaw, survived) {
   s.killedBy = null;
   s.roundKills = 0;
   s.hasBomb = false;
-  s.blind = s.slowed = s.charmed = s.stunned = s.burning = 0;
+  s.blind = s.slowed = s.boosted = s.charmed = s.stunned = s.burning = 0;
   if (!survived) {
     s.gun = createGun(MODELS.standard);
     s.armor = 0;
@@ -109,6 +110,7 @@ export function moveSoldier(s, intent, dt) {
   else if (intent.walk) top *= MOVE.walkMul;
   if (s.scoped) top *= MOVE.scopedMul;
   if (s.slowed > 0) top *= GRENADE.slowMul;
+  if (s.boosted > 0) top *= GRENADE.milkSpeed;
   if (s.action || s.stunned > 0) top = 0;
 
   const sin = Math.sin(s.yaw);

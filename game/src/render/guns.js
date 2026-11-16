@@ -5,7 +5,10 @@
 // with a heart front sight and a rose tied along the barrel; the Chef's walnut with a pepper-mill
 // crown and a knife and carving fork lashed on; the Teacher's oak with a pointer cane past the
 // muzzle and a chalk tray; the Office Lady's stapler-blue stock with binder clips, sticky notes and
-// her staff ID on a lanyard; the Nurse's white polymer with a graduated syringe barrel and needle.
+// her staff ID on a lanyard; the Nurse's white polymer with a graduated syringe barrel and needle;
+// the Coder's black build with a backlit keyboard down the fore-end and a mouse on the scope; the
+// Nanny's pastel build sighted through a baby bottle, with a pacifier muzzle and a rattle. A career
+// with no build here carries the plain rifle.
 // Each points down -z with the grip at the origin; metal and wood keep physical shading.
 import * as THREE from 'three';
 
@@ -85,8 +88,11 @@ function rifle(f) {
     tube(g, 0.02, 0.02, 0.07, f.metal, 0, 0.045, -0.8);
     for (const x of [-0.021, 0.021]) add(g, new THREE.BoxGeometry(0.004, 0.012, 0.04), steel(), x, 0.045, -0.8);
   }
+  // Folded bipod under the fore-end.
+  for (const x of [-0.018, 0.018]) add(g, new THREE.CylinderGeometry(0.004, 0.004, 0.2, 8), steel(), x, -0.035, -0.26, Math.PI / 2);
   // Scope: tube, bells, turrets, rings on bases.
   const sy = 0.12;
+  if (f.noScope) return g;
   tube(g, 0.02, 0.02, 0.3, f.scope, 0, sy, -0.05);
   tube(g, 0.032, 0.022, 0.08, f.scope, 0, sy, -0.23);
   tube(g, 0.026, 0.02, 0.06, f.scope, 0, sy, 0.12);
@@ -98,8 +104,6 @@ function rifle(f) {
     add(g, new THREE.TorusGeometry(0.023, 0.006, 8, 18), f.rings || f.metal, 0, sy, z);
     add(g, new THREE.BoxGeometry(0.02, 0.045, 0.02), f.rings || f.metal, 0, (sy + 0.05) / 2 + 0.01, z);
   }
-  // Folded bipod under the fore-end.
-  for (const x of [-0.018, 0.018]) add(g, new THREE.CylinderGeometry(0.004, 0.004, 0.2, 8), steel(), x, -0.035, -0.26, Math.PI / 2);
   return g;
 }
 
@@ -221,6 +225,56 @@ const BUILD = {
     for (const y of [-0.084, -0.094]) add(g, new THREE.BoxGeometry(0.005, 0.003, 0.016), mat('#555a66', 0, 0.6), -0.049, y, -0.12);
     return g;
   },
+  coder() {
+    const glow = mat('#39ff88', 0.2, 0.4, { emissive: '#1f9a50' });
+    const g = rifle({ stock: mat('#1b1d22', 0.3, 0.35), metal: mat('#2a2d34', 0.85, 0.3), accent: glow, scope: mat('#15161a', 0.6, 0.3) });
+    // A backlit mechanical keyboard down the fore-end's flank, keycaps in a rainbow sweep.
+    add(g, new THREE.BoxGeometry(0.014, 0.056, 0.32), mat('#202228', 0.4, 0.4), -0.044, -0.004, -0.2);
+    const caps = [];
+    for (let i = 0; i < 6; i++) caps.push(mat(`hsl(${i * 55}, 90%, 60%)`, 0.1, 0.4, { emissive: `hsl(${i * 55}, 90%, 22%)` }));
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 11; col++) {
+        add(g, new THREE.BoxGeometry(0.008, 0.013, 0.022), caps[(col + row) % caps.length], -0.054, 0.014 - row * 0.017, -0.345 + col * 0.028 + (row % 2) * 0.008);
+      }
+    }
+    add(g, new THREE.BoxGeometry(0.008, 0.012, 0.11), mat('#d8dbe2', 0.1, 0.4), -0.054, -0.037, -0.2);
+    // A gaming mouse taped on top of the scope, scroll wheel lit, its cable looping to the bolt.
+    const mouse = add(g, new THREE.SphereGeometry(0.03, 16, 12), mat('#2b2e36', 0.3, 0.3), 0, 0.165, -0.02);
+    mouse.scale.set(0.9, 0.6, 1.6);
+    add(g, new THREE.CylinderGeometry(0.008, 0.008, 0.006, 12), glow, 0, 0.183, -0.05, 0, 0, Math.PI / 2);
+    add(g, new THREE.BoxGeometry(0.002, 0.004, 0.04), mat('#111', 0.2, 0.6), 0, 0.184, -0.035);
+    add(g, new THREE.TorusGeometry(0.05, 0.003, 6, 20, Math.PI * 1.3), mat('#111216', 0.2, 0.6), -0.03, 0.12, 0.04, 0, Math.PI / 2, 0);
+    for (const z of [-0.07, 0.03]) add(g, new THREE.BoxGeometry(0.066, 0.012, 0.014), mat('#c8c8c8', 0, 0.8), 0, 0.152, z);
+    return g;
+  },
+  nanny() {
+    const pink = mat('#ff8fb1', 0.2, 0.4);
+    const g = rifle({ stock: mat('#ffe9a8', 0.1, 0.45), metal: mat('#c7ccd6', 0.8, 0.25), accent: pink, scope: pink, noScope: true, noMuzzle: true });
+    // The sight is a baby bottle on two pink rings: clear plastic, milk inside, graduations, a
+    // screw collar and a teat pointing down range.
+    const sy = 0.125;
+    tube(g, 0.032, 0.032, 0.24, mat('#eef8ff', 0, 0.05, { transparent: true, opacity: 0.4 }), 0, sy, -0.03);
+    tube(g, 0.027, 0.027, 0.17, mat('#fbfaf5', 0, 0.35), 0, sy, 0.0);
+    for (let i = 0; i < 5; i++) tube(g, 0.0325, 0.0325, 0.002, mat('#4a86c5', 0, 0.5), 0, sy, -0.1 + i * 0.03, 12);
+    tube(g, 0.034, 0.034, 0.012, pink, 0, sy, 0.09);
+    tube(g, 0.036, 0.034, 0.03, pink, 0, sy, -0.16);
+    const teat = add(g, new THREE.SphereGeometry(0.022, 14, 10), mat('#e7b56c', 0, 0.3, { transparent: true, opacity: 0.85 }), 0, sy, -0.185);
+    teat.scale.set(1, 1, 1.3);
+    add(g, new THREE.SphereGeometry(0.009, 10, 8), mat('#e7b56c', 0, 0.3), 0, sy, -0.212);
+    for (const z of [-0.08, 0.05]) add(g, new THREE.BoxGeometry(0.03, 0.06, 0.016), pink, 0, 0.085, z);
+    // A pacifier for a muzzle: guard, button and ring handle.
+    tube(g, 0.02, 0.02, 0.05, mat('#c7ccd6', 0.8, 0.25), 0, 0.045, -0.79);
+    add(g, new THREE.CylinderGeometry(0.04, 0.04, 0.01, 20), mat('#8fd3ff', 0.1, 0.4), 0, 0.045, -0.82, Math.PI / 2);
+    add(g, new THREE.TorusGeometry(0.026, 0.006, 8, 20), pink, 0, 0.045, -0.835);
+    // A rattle tied to the fore-end on a ribbon, and a duck on the flank.
+    add(g, new THREE.BoxGeometry(0.004, 0.07, 0.004), mat('#ff8fb1', 0, 0.6), -0.04, -0.06, -0.24);
+    add(g, new THREE.SphereGeometry(0.022, 14, 10), mat('#8fd3ff', 0.1, 0.35), -0.04, -0.1, -0.24);
+    add(g, new THREE.TorusGeometry(0.02, 0.005, 8, 16), mat('#ffe066', 0.1, 0.4), -0.04, -0.13, -0.24, 0, Math.PI / 2, 0);
+    const duck = flank(g, new THREE.SphereGeometry(0.016, 12, 10), mat('#ffd23f', 0.1, 0.4), -0.12, 0.0);
+    duck.scale.set(1.4, 1, 0.3);
+    flank(g, new THREE.SphereGeometry(0.01, 10, 8), mat('#ffd23f', 0.1, 0.4), -0.135, 0.016).scale.set(1, 1, 0.3);
+    return g;
+  },
   nurse() {
     const white = mat('#f3f6f8', 0.15, 0.35);
     const g = rifle({ stock: white, metal: mat('#b9c2ca', 0.9, 0.25), accent: mat('#41b6c8', 0.3, 0.35), scope: white, noBarrel: true, noMuzzle: true });
@@ -240,7 +294,12 @@ const BUILD = {
   },
 };
 
+/** The plain rifle, for a career with no build of its own yet. */
+function plain() {
+  return rifle({ stock: mat('#3b3f47', 0.2, 0.5), metal: blued(), accent: steel(), scope: blued() });
+}
+
 /** A new rifle for a career. */
 export function buildGun(roleId) {
-  return BUILD[roleId]();
+  return (BUILD[roleId] || plain)();
 }

@@ -125,8 +125,10 @@ export function createView(host, world) {
    */
   // The title screen's team photo: the Night Shift in front, the Gentlemen on a stone riser
   // behind them so all six faces show, framed in the half of the screen the title panel leaves.
-  const PHOTO = { x: 5, z: 12.2, gap: 1.25, rise: 0.8 };
-  const riser = new THREE.Mesh(new THREE.BoxGeometry(4.6, PHOTO.rise, 1.3), new THREE.MeshStandardMaterial({ color: '#b9ad9b' }));
+  // Each row is as wide as its side, so the photo grows with the roster.
+  const perRow = Math.max(...['atk', 'def'].map((t) => world.soldiers.filter((s) => s.team === t).length));
+  const PHOTO = { x: 5, z: 12.2, gap: 1.12, rise: 0.8 };
+  const riser = new THREE.Mesh(new THREE.BoxGeometry(perRow * PHOTO.gap + 0.9, PHOTO.rise, 1.3), new THREE.MeshStandardMaterial({ color: '#b9ad9b' }));
   riser.position.set(PHOTO.x, PHOTO.rise / 2, PHOTO.z - 0.75);
   riser.receiveShadow = riser.castShadow = true;
   toonify(riser, 0.02);
@@ -136,14 +138,16 @@ export function createView(host, world) {
   function renderLineup(time) {
     finishers.update(time);
     riser.visible = true;
+    const seat = { atk: 0, def: 0 };
     world.soldiers.forEach((s, i) => {
       const fig = figures[i];
-      const back = i < 3;
-      const col = (i % 3) - 1;
+      const back = s.team === 'atk';
+      const side = world.soldiers.filter((o) => o.team === s.team).length;
+      const col = seat[s.team]++ - (side - 1) / 2;
       fig.root.visible = true;
       fig.root.position.set(PHOTO.x + col * PHOTO.gap, back ? PHOTO.rise : 0, back ? PHOTO.z - 0.75 : PHOTO.z + 0.55);
       // Facing the camera, each turned a little toward the middle of the photo.
-      fig.root.rotation.set(0, Math.PI - col * 0.22, 0);
+      fig.root.rotation.set(0, Math.PI - col * 0.16, 0);
       const { rig } = fig;
       rig.body.position.set(0, Math.abs(Math.sin(time * 2 + i)) * 0.03, 0);
       rig.body.rotation.set(0, 0, 0);
@@ -161,7 +165,7 @@ export function createView(host, world) {
     });
     effects.update(world, 0.016, time);
     // The camera looks a little left of the group so the photo sits right of the title panel.
-    camera.position.set(PHOTO.x, 1.7, PHOTO.z + 7.4);
+    camera.position.set(PHOTO.x, 1.7, PHOTO.z + 4.6 + perRow * 0.95);
     camera.rotation.set(-0.04, 0.31, 0);
     camera.fov = BASE_FOV * 0.62;
     camera.updateProjectionMatrix();

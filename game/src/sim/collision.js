@@ -131,7 +131,27 @@ const rayScratch = { x: 0, y: 0, z: 0 };
 const hitScratch = { t: Infinity, solid: null };
 
 /** Whether b can be seen from a: no box on the segment and no smoke cloud across it. */
-export function lineOfSight(a, b, smokes) {
+/**
+ * Where a ray first meets a code wall (a standing rectangle: centre x/z, along ux/uz, half its
+ * width, base y, top h), as a distance, or Infinity.
+ */
+export function rayWalls(o, d, maxT, walls) {
+  let best = Infinity;
+  if (!walls) return best;
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    const denom = d.x * w.uz - d.z * w.ux;
+    if (Math.abs(denom) < EPS) continue;
+    const t = -((o.x - w.x) * w.uz - (o.z - w.z) * w.ux) / denom;
+    if (t < 0 || t > maxT || t >= best) continue;
+    const y = o.y + d.y * t;
+    const along = (o.x + d.x * t - w.x) * w.ux + (o.z + d.z * t - w.z) * w.uz;
+    if (y >= w.y && y <= w.h && Math.abs(along) <= w.half) best = t;
+  }
+  return best;
+}
+
+export function lineOfSight(a, b, smokes, walls) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dz = b.z - a.z;
@@ -142,6 +162,7 @@ export function lineOfSight(a, b, smokes) {
   rayScratch.z = dz / len;
   raycastMap(a, rayScratch, len, hitScratch);
   if (hitScratch.t < len - 0.05) return false;
+  if (rayWalls(a, rayScratch, len, walls) < len - 0.05) return false;
   if (smokes) {
     for (let i = 0; i < smokes.length; i++) {
       const s = smokes[i];

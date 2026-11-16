@@ -22,10 +22,12 @@ const GAG_TEXT = {
   fired: ["YOU'RE FIRED", '#c62828', 'rgba(255,248,230,0.92)'],
   swoon: ['SWOONED', '#e2385d', 'rgba(255,236,244,0.92)'],
   served: ['ORDER UP!', '#2b2b2b', 'rgba(255,255,255,0.92)'],
+  crashed: ['FATAL ERROR', '#ffffff', 'rgba(26,95,214,0.95)'],
+  timeout: ['TIME-OUT!', '#d0407a', 'rgba(255,240,246,0.95)'],
 };
 
 /** The face a fallen figure pulls for each gag. */
-const FACES = { graded: 'shock', overtime: 'ko', sedated: 'sleep', fired: 'shock', swoon: 'love', served: 'ko', blast: 'ko', ring: 'dizzy' };
+const FACES = { graded: 'shock', overtime: 'ko', sedated: 'sleep', fired: 'shock', swoon: 'love', served: 'ko', crashed: 'dizzy', timeout: 'sleep', blast: 'ko', ring: 'dizzy' };
 
 export const GAG_VERBS = {
   graded: 'graded',
@@ -34,6 +36,8 @@ export const GAG_VERBS = {
   fired: 'fired',
   swoon: 'swept off their feet',
   served: 'served',
+  crashed: 'crashed',
+  timeout: 'put down for a nap',
   blast: 'glittered',
   ring: 'caught outside the ring',
 };
@@ -45,6 +49,7 @@ export function createFinishers(scene) {
   const heart = new THREE.MeshStandardMaterial({ color: '#ff4f7b', emissive: '#6b0d22', roughness: 0.4 });
   const silver = new THREE.MeshStandardMaterial({ color: '#d7dbe0', roughness: 0.15, metalness: 0.95 });
   const bandage = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
+  const blanketMat = new THREE.MeshStandardMaterial({ color: '#ffb3cb', roughness: 0.95 });
 
   /** Starts a gag on a fallen figure: kind is the killer's finisher ('blast', 'ring' without one). */
   function start(fig, s, kind, time) {
@@ -106,6 +111,20 @@ export function createFinishers(scene) {
         root.add(z);
         g.props.push(z);
       }
+    } else if (g.kind === 'crashed') {
+      // The blue screen: a sad face and a stop code hung over the frozen victim.
+      const screen = label(':(  0x0000404', '#ffffff', '#1a5fd6', 0.5);
+      screen.position.y = 1.9;
+      root.add(screen);
+      g.props.push(screen);
+    } else if (g.kind === 'timeout') {
+      // Tucked in for a nap under a pink blanket.
+      const blanket = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.1, 1.5), blanketMat);
+      blanket.position.set(0, 0.32, 0.55);
+      blanket.scale.setScalar(0.01);
+      blanket.castShadow = true;
+      root.add(blanket);
+      g.props.push(blanket);
     } else if (g.kind === 'graded') {
       const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.46), new THREE.MeshBasicMaterial({ map: label('F', '#d32f2f', '#fbf6e9', 1).material.map }));
       fig.rig.head.add(sheet);
@@ -149,6 +168,20 @@ export function createFinishers(scene) {
       } else if (g.kind === 'served') {
         const lid = g.props[0];
         lid.position.y = Math.max(0, 6 - t * t * 14);
+      } else if (g.kind === 'crashed') {
+        // Freezes stiff, glitches, then topples over backwards like a statue.
+        const f = Math.max(0, Math.min(1, (t - 0.8) / 0.7));
+        rig.armL.rotation.set(0, 0, 0.1);
+        rig.armR.rotation.set(0, 0, -0.1);
+        rig.body.position.x = t < 0.8 ? Math.sin(t * 90) * 0.03 : 0;
+        rig.body.rotation.x = -(Math.PI / 2) * f * f;
+        rig.body.position.y = 0.15 * f;
+        g.props[0].position.y = 1.9 + Math.sin(t * 2) * 0.05 - f * 0.6;
+      } else if (g.kind === 'timeout') {
+        // Lies down on the side and the blanket tucks in.
+        rig.body.rotation.x = -(Math.PI / 2) * k;
+        rig.body.position.y = 0.2 * k;
+        g.props[0].scale.setScalar(Math.min(1, Math.max(0.01, (t - 0.4) * 2)));
       } else {
         // Falls flat: backward when fired, forward otherwise.
         const dir = g.kind === 'fired' ? -1 : 1;

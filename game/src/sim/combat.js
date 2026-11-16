@@ -4,7 +4,7 @@
 // killer's career, so the victim plays that career's finishing gag.
 import { HITBOX, MODELS } from './config.js';
 import { eyePos, hitShape } from './actors.js';
-import { raycastMap, rayBox, raySphere } from './collision.js';
+import { raycastMap, rayBox, raySphere, rayWalls } from './collision.js';
 
 const eye = { x: 0, y: 0, z: 0 };
 const mapHit = { t: Infinity, solid: null };
@@ -18,7 +18,8 @@ const MAX_RANGE = 220;
 export function traceShot(world, s, dir, out) {
   eyePos(s, eye);
   raycastMap(eye, dir, MAX_RANGE, mapHit);
-  let best = mapHit.t;
+  // A code wall stops the round like a solid.
+  let best = Math.min(mapHit.t, rayWalls(eye, dir, MAX_RANGE, world.walls));
   out.victim = null;
   out.head = false;
   for (const o of world.soldiers) {

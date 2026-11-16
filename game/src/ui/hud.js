@@ -1,7 +1,7 @@
 // The HUD and menus, as DOM over the canvas: score and clock, the minimap, the kill feed (written
 // as a clash of careers), vitals, ammo, crosshair and scope, banners, the plant/defuse bar, the buy
 // menu, the scoreboard, the title's career picker and the match-over table.
-import { BUY_LIST, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLES, ROLE_ORDER, ROUND, TEAMS } from '../sim/config.js';
+import { BUY_LIST, GEAR, GRENADES, GRENADE_MAX, MATCH, MODELS, ROLES, ROLE_ORDER, ROUND, TEAMS } from '../sim/config.js';
 import { BOUNDS, SOLIDS } from '../sim/map.js';
 import { inDropZone, plantedBombs } from '../sim/world.js';
 import { currentSpread } from '../sim/weapons.js';
@@ -111,7 +111,7 @@ export function createHud() {
     const li = document.createElement('li');
     if (killer && (killer.isPlayer || victim.isPlayer)) li.className = 'mine';
     const k = killer ? `<span class="${killer.team}">${killer.name}</span>` : e.finisher === 'ring' ? '<span class="how">The closing ring</span>' : '<span class="atk">The glitter charge</span>';
-    li.innerHTML = `${k}<span class="how">${GAG_VERBS[e.finisher || 'blast']}${e.head ? ' · head' : ''}</span><span class="${victim.team}">${victim.name}</span>`;
+    li.innerHTML = `${k}<span class="how">${GAG_VERBS[e.finisher || 'blast'] || e.finisher}${e.head ? ' · head' : ''}</span><span class="${victim.team}">${victim.name}</span>`;
     el.feed.prepend(li);
     while (el.feed.children.length > 5) el.feed.lastChild.remove();
     setTimeout(() => li.remove(), 7000);
@@ -169,7 +169,7 @@ export function createHud() {
     el.ammo.classList.toggle('empty', gun.mag === 0);
     el.grenadeName.textContent = GRENADES[viewer.role.id].name;
     el.grenades.textContent = viewer.grenades;
-    el.status.textContent = viewer.outside ? 'Outside the ring: get in!' : viewer.stunned > 0 ? 'Stunned by a team combo!' : viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : '';
+    el.status.textContent = viewer.outside ? 'Outside the ring: get in!' : viewer.stunned > 0 ? 'Stunned by a team combo!' : viewer.charmed > 0 ? 'Charmed: you cannot bring yourself to shoot' : viewer.slowed > 0 ? 'Sedated: slow, no scope' : viewer.burning > 0 ? 'On fire: get out of the flames' : viewer.boosted > 0 ? 'On the milk: faster, and healing' : '';
     // The crosshair opens with the spread.
     const gap = 6 + Math.min(60, currentSpread(viewer) * 900);
     const arms = el.crosshair.children;
@@ -254,6 +254,7 @@ export function createHud() {
 
   /** Fills the title's career picker; onPick(team, roleId) when one is chosen. */
   function buildPicker(onPick) {
+    $('kicker').textContent = `A three.js sniper standoff · ${MATCH.teamSize} v ${MATCH.teamSize} · first to ${ROUND.winsToTake} rounds`;
     for (const team of ['atk', 'def']) {
       const list = $(`roles-${team}`);
       for (const roleId of ROLE_ORDER[team]) {
@@ -263,7 +264,7 @@ export function createHud() {
         b.className = 'role';
         b.dataset.team = team;
         b.dataset.role = roleId;
-        b.innerHTML = `<i class="face" style="background: radial-gradient(circle at 50% 38%, ${r.skin} 0 34%, ${r.hair} 35% 48%, ${r.suit} 49%)"></i><span><b>${r.name}</b><span>${r.gun} rifle · ${GRENADES[roleId].name} · finisher: ${GAG_VERBS[r.finisher]}</span></span>`;
+        b.innerHTML = `<i class="face" style="background: radial-gradient(circle at 50% 38%, ${r.skin} 0 34%, ${r.hair} 35% 48%, ${r.suit} 49%)"></i><span><b>${r.name}</b><span>${r.gun} rifle · ${GRENADES[roleId].name} · finisher: ${GAG_VERBS[r.finisher] || r.finisher}</span></span>`;
         b.addEventListener('click', () => {
           document.querySelectorAll('.role').forEach((x) => x.classList.remove('on'));
           b.classList.add('on');

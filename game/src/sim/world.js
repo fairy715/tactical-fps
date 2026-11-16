@@ -3,12 +3,12 @@
 // keyboard and mouse, each bot's from its brain), events come out (shots, hits, kills, plants,
 // round ends) for the renderer, the HUD and the sound to react to. Nothing here draws. The
 // objective (charges, drop zones, the ring) lives in objective.js.
-import { ECONOMY, GEAR, GRENADES, GRENADE_MAX, MODELS, ROLE_ORDER, ROUND, TEAMS } from './config.js';
+import { ECONOMY, GEAR, GRENADES, GRENADE_MAX, MATCH, MODELS, ROLE_ORDER, ROUND, TEAMS } from './config.js';
 import { createSoldier, eyePos, moveSoldier, respawn } from './actors.js';
 import { createBrain, botBuy, planRound, updateBot } from './bots.js';
 import { applyHit, traceShot } from './combat.js';
 import { throwGrenade, updateGrenades } from './grenades.js';
-import { ROUTES, SPAWNS } from './map.js';
+import { ROUTES, spawnSlot } from './map.js';
 import { checkRound, dropBomb, enemyOf, markDropZones, pickUpBombs, resetObjective, updateRing, useAction } from './objective.js';
 import { createRng } from './rng.js';
 import { createGun, fireGun, settleRecoil, startReload, tickGun } from './weapons.js';
@@ -51,7 +51,7 @@ export function createWorld(options) {
   };
   let id = 0;
   for (const team of ['atk', 'def']) {
-    for (const roleId of ROLE_ORDER[team]) {
+    for (const roleId of lineUp(team, options)) {
       const isPlayer = options.playerTeam === team && options.playerRole === roleId;
       const s = createSoldier(id++, team, roleId, isPlayer);
       s.money = ECONOMY.start;
@@ -64,6 +64,13 @@ export function createWorld(options) {
   return world;
 }
 
+/** The careers that take the field for a side: the player's own first, then roster order. */
+export function lineUp(team, options = {}) {
+  const roster = ROLE_ORDER[team];
+  const mine = options.playerTeam === team && roster.includes(options.playerRole) ? [options.playerRole] : [];
+  return mine.concat(roster.filter((r) => !mine.includes(r))).slice(0, MATCH.teamSize);
+}
+
 function startRound(world) {
   world.round += 1;
   world.phase = 'freeze';
@@ -71,11 +78,13 @@ function startRound(world) {
   world.grenades = [];
   world.smokes = [];
   world.zones = [];
+  world.walls = [];
+  world.pickups = [];
   world.combo = [];
   world.comboCalls = { atk: null, def: null };
   for (const team of ['atk', 'def']) {
     world.soldiers.filter((s) => s.team === team).forEach((s, i) => {
-      const [x, z, yaw] = SPAWNS[team][i % SPAWNS[team].length];
+      const [x, z, yaw] = spawnSlot(team, i);
       respawn(s, x, z, yaw, s.alive && world.round > 1);
     });
   }
@@ -127,6 +136,7 @@ function applyCommand(world, s, cmd, dt) {
   settleRecoil(s, dt);
   s.blind = Math.max(0, s.blind - dt);
   s.slowed = Math.max(0, s.slowed - dt);
+  s.boosted = Math.max(0, s.boosted - dt);
   s.charmed = Math.max(0, s.charmed - dt);
   s.stunned = Math.max(0, s.stunned - dt);
   s.burning = Math.max(0, s.burning - dt);

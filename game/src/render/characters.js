@@ -1,7 +1,9 @@
 // The six careers as cartoon figures: big round heads with drawn faces, rounded bodies and limbs,
 // toon shading and ink outlines. The Teacher wears a cardigan, pencil skirt and glasses; the Office
 // Lady a white blouse, black pencil skirt, heels, long permed hair and an ID badge; the Nurse scrubs and a cap; the Boss a dark
-// suit and gold tie; the Playboy a white suit, shades and a heart pin; the Chef whites and a toque.
+// suit and gold tie; the Playboy a white suit, shades and a heart pin; the Chef whites and a toque;
+// the Coder a hoodie, square glasses, headphones and bed hair; the Nanny a cardigan, apron and a
+// bun with a bow. A career with no entry in these tables still gets a plain figure in its colours.
 // Faces change with what happens: dizzy when stunned, heart eyes when charmed, and the finishing
 // gag's own look when they fall. Each carries its career's rifle and its team's armband.
 import * as THREE from 'three';
@@ -29,7 +31,10 @@ const FACE_STYLE = {
   teacher: { brow: 3, lip: '#c4475b', lashes: true },
   office: { brow: 3, lip: '#d0506a', lashes: true },
   nurse: { brow: 3, lip: '#e0607a', lashes: true },
+  coder: { brow: 4, lip: '#8a4b3a', lashes: false },
+  nanny: { brow: 3, lip: '#d0607a', lashes: true },
 };
+const PLAIN_FACE = { brow: 4, lip: '#8a4b3a', lashes: false };
 
 const faceCache = new Map();
 
@@ -45,7 +50,7 @@ function heart(ctx, x, y, s) {
 function faceTexture(roleId, expr) {
   const key = `${roleId}:${expr}`;
   if (faceCache.has(key)) return faceCache.get(key);
-  const st = FACE_STYLE[roleId];
+  const st = FACE_STYLE[roleId] || PLAIN_FACE;
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d');
@@ -180,6 +185,8 @@ const BUILD = {
   teacher: { height: 0.98, width: 0.95, depth: 0.95 },
   office: { height: 1.06, width: 0.9, depth: 0.92 },
   nurse: { height: 0.88, width: 0.88, depth: 0.9 },
+  coder: { height: 0.95, width: 1.16, depth: 1.3 },
+  nanny: { height: 0.94, width: 1.04, depth: 1.02 },
 };
 
 const OUTFIT = {
@@ -189,7 +196,14 @@ const OUTFIT = {
   teacher: { legs: '#4a3b40', shoes: '#7a2f25', torso: '#3e7a55', arms: '#3e7a55' },
   office: { legs: '#d9a88f', shoes: '#1a1a1a', torso: '#f7f8fb', arms: '#f7f8fb' },
   nurse: { legs: '#f0e3d8', shoes: '#f7f7f7', torso: '#dff1f5', arms: '#dff1f5' },
+  coder: { legs: '#3b5179', shoes: '#ececec', torso: '#3a3f4b', arms: '#3a3f4b' },
+  nanny: { legs: '#efd3c0', shoes: '#c9876b', torso: '#f6c7d4', arms: '#f6c7d4' },
 };
+
+/** A figure for a career the tables above do not know yet: its suit, plain trousers. */
+function plainOutfit(role) {
+  return { legs: '#33343c', shoes: '#18181c', torso: role.suit, arms: role.suit };
+}
 
 function dress(roleId, role, torso, head) {
   const hair = role.hair;
@@ -251,6 +265,35 @@ function dress(roleId, role, torso, head) {
         head.add(curl);
       }
     }
+  } else if (roleId === 'coder') {
+    // Hoodie: the hood bunched behind the neck, drawstrings, a green </> on the chest.
+    const hood = mesh(new THREE.TorusGeometry(0.15, 0.07, 10, 20), role.suit, 0, 0.3, 0.1);
+    hood.rotation.x = Math.PI / 2.4;
+    torso.add(hood);
+    for (const x of [-0.05, 0.05]) torso.add(mesh(block(0.015, 0.16, 0.015), '#f2f2f2', x, 0.16, -0.152));
+    torso.add(mesh(block(0.12, 0.05, 0.02), role.trim, 0.0, 0.0, -0.152));
+    // Headphones round the neck.
+    const band = mesh(new THREE.TorusGeometry(0.16, 0.02, 8, 20, Math.PI), '#111216', 0, 0.36, 0);
+    band.rotation.x = Math.PI / 2;
+    torso.add(band);
+    for (const x of [-0.16, 0.16]) torso.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 14), '#111216', x, 0.34, -0.03));
+    // Square thick-rimmed glasses and a mop of bed hair.
+    for (const x of [-0.075, 0.075]) {
+      head.add(mesh(block(0.11, 0.08, 0.012), '#111216', x, 0.0, -0.198));
+      head.add(mesh(block(0.085, 0.056, 0.014), '#bfe3ff', x, 0.0, -0.2));
+    }
+    head.add(mesh(new THREE.SphereGeometry(0.212, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), hair, 0, 0.01, 0.01));
+    for (const [x, y, z] of [[-0.12, 0.17, -0.05], [0.0, 0.21, -0.08], [0.12, 0.16, -0.02], [0.06, 0.2, 0.08], [-0.08, 0.19, 0.1]]) head.add(mesh(ball(0.07), hair, x, y, z));
+  } else if (roleId === 'nanny') {
+    // Cardigan buttons, a white apron with a pocket, a bun with a pink bow.
+    for (const y of [0.18, 0.08, -0.02]) torso.add(mesh(ball(0.016), '#ffffff', 0.0, y, -0.152));
+    torso.add(mesh(block(0.3, 0.3, 0.02), '#ffffff', 0, -0.1, -0.16), mesh(block(0.12, 0.08, 0.025), '#ffe0ea', 0, -0.16, -0.17));
+    head.add(mesh(new THREE.SphereGeometry(0.212, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), hair, 0, 0.01, 0.01), mesh(ball(0.1), hair, 0, 0.16, 0.14));
+    for (const x of [-0.06, 0.06]) {
+      const bow = mesh(new THREE.ConeGeometry(0.05, 0.08, 4), '#ff7fa8', x, 0.24, 0.12);
+      bow.rotation.z = x > 0 ? -Math.PI / 2 : Math.PI / 2;
+      head.add(bow);
+    }
   } else if (roleId === 'nurse') {
     const hat = mesh(block(0.24, 0.08, 0.14), '#ffffff', 0, 0.2, -0.02);
     hat.add(mesh(block(0.06, 0.018, 0.012), '#e2384d', 0, 0, -0.075), mesh(block(0.018, 0.06, 0.012), '#e2384d', 0, 0, -0.075));
@@ -283,7 +326,7 @@ export function buildSoldier(role, team) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const fit = OUTFIT[role.id];
+  const fit = OUTFIT[role.id] || plainOutfit(role);
   const hips = new THREE.Group();
   hips.position.y = 0.9;
   body.add(hips);
@@ -296,6 +339,10 @@ export function buildSoldier(role, team) {
   let skirt = null;
   if (role.id === 'teacher') {
     skirt = mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.52, 18), '#3b3d48', 0, -0.25, 0);
+    hips.add(skirt);
+  } else if (role.id === 'nanny') {
+    // A full pastel skirt to the knee.
+    skirt = mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.5, 18), '#fff0b8', 0, -0.22, 0);
     hips.add(skirt);
   } else if (role.id === 'office') {
     // A black pencil skirt, tight to just above the knee.
@@ -334,7 +381,7 @@ export function buildSoldier(role, team) {
 
   dress(role.id, role, torso, head);
   // The career's build: height for the whole figure, girth for the torso (the head keeps its size).
-  const build = BUILD[role.id];
+  const build = BUILD[role.id] || { height: 1, width: 1, depth: 1 };
   body.scale.setScalar(build.height);
   torso.scale.set(build.width, 1, 0.72 * build.depth);
   // What hangs from the torso keeps its own shape: undo the torso's girth on the head, arms and rifle.

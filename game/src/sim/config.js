@@ -1,4 +1,4 @@
-// Every tuning number of Office Hours in one place: movement, the six careers and their
+// Every tuning number of Office Hours in one place: movement, the careers and their
 // signature sniper rifles, gear, the economy, the round clock and the bots. tools/balance.mjs
 // plays bot-only matches on these numbers.
 
@@ -10,8 +10,10 @@ export const TEAMS = {
 };
 
 /**
- * The six careers. Each carries a sniper rifle shaped after the job, and a kill by it plays the
- * job's own finishing gag on the victim (render/finishers.js draws them).
+ * The careers. Each carries a sniper rifle shaped after the job, and a kill by it plays the job's
+ * own finishing gag on the victim (render/finishers.js draws them). The roster is open: a new
+ * career is one entry here and one in GRENADES, plus its look in render/characters.js and its
+ * rifle in render/guns.js; teams, spawns, the picker and the title photo all follow the list.
  */
 export const ROLES = {
   boss: { id: 'boss', team: 'atk', name: 'The Boss', gun: 'Gold Nib', finisher: 'fired', suit: '#2b2f3a', trim: '#d9b44a', skin: '#e2b48f', hair: '#2a2321' },
@@ -20,9 +22,21 @@ export const ROLES = {
   teacher: { id: 'teacher', team: 'def', name: 'The Teacher', gun: 'Pointer', finisher: 'graded', suit: '#3e6b4f', trim: '#f2e9d0', skin: '#e9be9b', hair: '#5a3825' },
   office: { id: 'office', team: 'def', name: 'The Office Lady', gun: 'Stapler', finisher: 'overtime', suit: '#353c4a', trim: '#e9edf2', skin: '#f0c8a8', hair: '#7a4128' },
   nurse: { id: 'nurse', team: 'def', name: 'The Nurse', gun: 'Syringe', finisher: 'sedated', suit: '#e8f3f6', trim: '#41b6c8', skin: '#e3b08d', hair: '#8a5a33' },
+  coder: { id: 'coder', team: 'atk', name: 'The Coder', gun: 'Keyboard', finisher: 'crashed', suit: '#3a3f4b', trim: '#39ff88', skin: '#efc9a4', hair: '#2d2420' },
+  nanny: { id: 'nanny', team: 'def', name: 'The Nanny', gun: 'Bottle', finisher: 'timeout', suit: '#f6c7d4', trim: '#fff4c2', skin: '#d9a582', hair: '#a8652f' },
 };
 
-export const ROLE_ORDER = { atk: ['boss', 'playboy', 'chef'], def: ['teacher', 'office', 'nurse'] };
+/** Each team's careers, in roster order, from ROLES. */
+export const ROLE_ORDER = {
+  atk: Object.values(ROLES).filter((r) => r.team === 'atk').map((r) => r.id),
+  def: Object.values(ROLES).filter((r) => r.team === 'def').map((r) => r.id),
+};
+
+/**
+ * Who takes the field: `teamSize` careers a side. The player's own career always plays; the rest
+ * of the side is filled in roster order, so a roster longer than the team just rotates the bench.
+ */
+export const MATCH = { teamSize: 4 };
 
 export const MOVE = {
   speed: 5.6,
@@ -62,7 +76,10 @@ export const GEAR = {
  * Each career throws its own grenade, and only its own: the Teacher's chalk eraser smokes a
  * sightline shut, the Office Lady's photocopier flash blinds, the Nurse's sedative vial leaves a
  * gas that slows and unscopes, the Boss's money bag explodes, the Playboy's rose bouquet charms
- * enemies so they cannot shoot, and the Chef's flaming pan sets the ground alight. Two at most.
+ * enemies so they cannot shoot, and the Chef's flaming pan sets the ground alight. Two support
+ * throws help the thrower's own side instead (`support`): the Coder's code dump stands up a wall
+ * of scrolling code that stops bullets and sight, with a cola behind it that heals a teammate;
+ * the Nanny's milk spill makes a puddle where teammates run faster and heal. Two at most.
  */
 export const GRENADES = {
   teacher: { kind: 'smoke', name: 'Chalk eraser', note: 'A cloud of chalk dust that blocks every sightline', price: 300 },
@@ -71,22 +88,24 @@ export const GRENADES = {
   boss: { kind: 'frag', name: 'Money bag', note: 'Bursts in a hail of coins: damage around it', price: 350 },
   playboy: { kind: 'charm', name: 'Rose bouquet', note: 'Charms enemies near it: no shooting for a moment', price: 300 },
   chef: { kind: 'fire', name: 'Flaming pan', note: 'Sets the ground alight: burns whoever stands in it', price: 400 },
+  coder: { kind: 'code', name: 'Code dump', note: 'A wall of scrolling code: stops bullets and sight; a cola behind it heals', price: 350, support: true },
+  nanny: { kind: 'milk', name: 'Milk spill', note: 'A puddle of milk: teammates on it run faster and heal', price: 300, support: true },
 };
 
 export const GRENADE_MAX = 2;
 
 /**
- * Team combos: when a team's three grenades land within `window` seconds and `radius` metres of
- * each other (wherever they were thrown from), every enemy within `reach` of them pays. The Night
- * Shift's Staff Meeting stuns and hurts; the Gentlemen's Hostile Takeover strips armour and
- * grenades, hurts more and dazes for a moment.
+ * Team combos: when `count` different attack grenades of one team land within `window` seconds
+ * and `radius` metres of each other (wherever they were thrown from), every enemy within `reach`
+ * of them pays. Support throws never count. The Night Shift's Staff Meeting stuns and hurts; the
+ * Gentlemen's Hostile Takeover strips armour and grenades, hurts more and dazes for a moment.
  */
 export const COMBOS = {
-  def: { name: 'Staff Meeting', kinds: ['smoke', 'flash', 'slow'], stun: 3, damage: 35, strip: false },
-  atk: { name: 'Hostile Takeover', kinds: ['frag', 'charm', 'fire'], stun: 1.5, damage: 45, strip: true },
+  def: { name: 'Staff Meeting', stun: 3, damage: 35, strip: false },
+  atk: { name: 'Hostile Takeover', stun: 1.5, damage: 45, strip: true },
 };
 
-export const COMBO_RULES = { window: 6, radius: 7, reach: 8.5 };
+export const COMBO_RULES = { count: 3, window: 6, radius: 7, reach: 8.5 };
 
 export const BUY_LIST = ['standard', 'rapid', 'heavy', 'vest', 'grenade'];
 
@@ -110,6 +129,14 @@ export const GRENADE = {
   slowMul: 0.4,
   charmRadius: 8,
   charmTime: 2.6,
+  codeLife: 10, // the code wall: seconds standing, half its width, its height
+  codeHalf: 2.4,
+  codeHeight: 2.3,
+  colaHeal: 40, // the cola behind it, for the first teammate to reach it
+  milkRadius: 4,
+  milkLife: 9,
+  milkHeal: 9, // health a second for teammates standing in it
+  milkSpeed: 1.3,
 };
 
 export const ECONOMY = {

@@ -146,6 +146,12 @@ export function playEvents(world, events, listener) {
         for (let i = 0; i < 5; i++) tone(out, now + 0.05 + i * 0.06, 2600 + i * 300, 0.08, 'triangle', 0.08);
       } else if (e.kind === 'fire') noise(out, now, 1.6, 1400, 'bandpass', 0.6);
       else if (e.kind === 'charm') [880, 1175, 1568].forEach((f, i) => tone(out, now + i * 0.07, f, 0.35, 'sine', 0.12));
+      else if (e.kind === 'code') for (let i = 0; i < 10; i++) tone(out, now + i * 0.035, 600 + ((i * 7) % 5) * 220, 0.04, 'square', 0.06);
+      else if (e.kind === 'milk') noise(out, now, 0.5, 900, 'lowpass', 0.7);
+    } else if (e.type === 'cola') {
+      const out = place(listener, e.x, e.z, 1);
+      noise(out, now, 0.35, 3000, 'highpass', 0.3);
+      [330, 300, 270].forEach((f, i) => tone(out, now + 0.1 + i * 0.12, f, 0.1, 'sine', 0.12));
     } else if (e.type === 'roundOver' || e.type === 'matchOver') {
       const won = listener && e.winner === listener.team;
       (won ? [523, 659, 784] : [392, 330, 262]).forEach((f, i) => tone(A.master, now + i * 0.15, f, 0.5, 'triangle', 0.18));

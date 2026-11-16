@@ -100,18 +100,18 @@ export const SITES = {
   B: { id: 'B', name: 'Clinic court', x: 36, z: -15 },
 };
 
+/** Each side's spawn line: its centre, the way it faces, and which way is back (+z or -z). */
 export const SPAWNS = {
-  atk: [
-    [-4, 38, 0],
-    [0, 39.5, 0],
-    [4, 38, 0],
-  ],
-  def: [
-    [-4, -31, Math.PI],
-    [0, -32.5, Math.PI],
-    [4, -31, Math.PI],
-  ],
+  atk: { x: 0, z: 38, yaw: 0, back: 1 },
+  def: { x: 0, z: -31, yaw: Math.PI, back: -1 },
 };
+
+/** The i-th spawn of a side: alternating out from the centre in a shallow chevron, 3 m apart. */
+export function spawnSlot(team, i) {
+  const sp = SPAWNS[team];
+  const k = Math.ceil(i / 2) * (i % 2 ? 1 : -1);
+  return [sp.x + k * 3, sp.z + sp.back * (1.5 - Math.abs(k) * 0.75), sp.yaw];
+}
 
 /** Waypoints [x, z, floor height] the bots route on, and the lanes that join them. */
 export const NODES = {

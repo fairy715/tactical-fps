@@ -23,6 +23,32 @@ function softDot() {
   return new THREE.CanvasTexture(c);
 }
 
+/** Lines of green code on black, for the Coder's walls; it tiles as it scrolls. */
+function codeTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 15px monospace';
+  const words = ['if (', 'return', '0x1F', 'null', 'for (;;)', '=>', 'await', 'try {', '} catch', 'sudo', 'git push', '404', 'malloc', '<div>', 'yield', 'NaN'];
+  let n = 7;
+  for (let y = 14; y < 256; y += 17) {
+    let x = 4;
+    while (x < 240) {
+      n = (n * 31 + 11) % 97;
+      const w = words[n % words.length];
+      ctx.fillStyle = n % 5 ? '#39ff88' : '#c9ffd9';
+      ctx.fillText(w, x, y);
+      x += ctx.measureText(w).width + 10;
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 1);
+  return tex;
+}
+
 export function createEffects(scene) {
   const dot = softDot();
 
@@ -96,8 +122,9 @@ export function createEffects(scene) {
     smokeSlots.push(group);
   }
 
-  // Lingering zones (the Chef's fire, the Nurse's sedative): a glowing ring on the ground each.
+  // Lingering zones (the Chef's fire, the Nurse's sedative, the Nanny's milk): a disc on the ground.
   const zoneMats = {
+    milk: new THREE.MeshStandardMaterial({ color: '#fbfbf6', roughness: 0.15, metalness: 0, transparent: true, opacity: 0.92, depthWrite: false }),
     fire: new THREE.MeshBasicMaterial({ color: '#ff6a1f', transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }),
     slow: new THREE.MeshBasicMaterial({ color: '#5fe0b8', transparent: true, opacity: 0.25, depthWrite: false }),
   };
@@ -108,6 +135,35 @@ export function createEffects(scene) {
     disc.visible = false;
     scene.add(disc);
     zoneDiscs.push(disc);
+  }
+
+  // The Coder's code walls: a standing pane of scrolling green code, and the cola behind each.
+  const codeTex = codeTexture();
+  const codeMat = new THREE.MeshBasicMaterial({ map: codeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  const codeBack = new THREE.MeshBasicMaterial({ color: '#06140c', transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+  const walls = [];
+  for (let i = 0; i < 6; i++) {
+    const group = new THREE.Group();
+    group.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), codeBack), new THREE.Mesh(new THREE.PlaneGeometry(1, 1), codeMat));
+    group.visible = false;
+    scene.add(group);
+    walls.push(group);
+  }
+  const canMat = new THREE.MeshStandardMaterial({ color: '#d0212b', metalness: 0.6, roughness: 0.3 });
+  const canBand = new THREE.MeshStandardMaterial({ color: '#f4f4f4', metalness: 0.3, roughness: 0.4 });
+  const canTop = new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.9, roughness: 0.2 });
+  const cans = [];
+  for (let i = 0; i < 6; i++) {
+    const can = new THREE.Group();
+    can.add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.34, 18), canMat));
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.112, 0.07, 18), canBand);
+    band.position.y = 0.02;
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.03, 18), canTop);
+    top.position.y = 0.18;
+    can.add(band, top);
+    can.visible = false;
+    scene.add(can);
+    cans.push(can);
   }
 
   // Each team's drop zone: a painted ring in the team's colour where the other side first fell, and
@@ -189,6 +245,10 @@ export function createEffects(scene) {
         flashLight.color.set('#ffb35a');
         flashLight.intensity = 30;
         flashLife = 0.3;
+      } else if (kind === 'code') {
+        burst(x, y + 1, z, 50, '#39ff88', 4, 0.8, 1);
+      } else if (kind === 'milk') {
+        burst(x, y + 0.2, z, 40, '#ffffff', 3.5, 0.7, 7);
       } else if (kind === 'charm') {
         burst(x, y + 0.5, z, 70, '#ff5d8f', 5, 1.4, -1);
         burst(x, y + 0.5, z, 30, '#ffc2d6', 3, 1.6, -1);
@@ -259,8 +319,30 @@ export function createEffects(scene) {
         disc.scale.setScalar(z.r * (0.92 + Math.sin(time * 9 + i) * 0.04));
         const a = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * z.r;
-        if (z.kind === 'fire') burst(z.x + Math.cos(a) * r, 0.1, z.z + Math.sin(a) * r, 3, Math.random() < 0.5 ? '#ff7a2a' : '#ffd25a', 1.2, 0.7, -2.5);
+        if (z.kind === 'milk') {
+          disc.position.y = 0.03;
+          disc.scale.setScalar(z.r);
+          if (Math.random() < 0.08) burst(z.x + Math.cos(a) * r, 0.05, z.z + Math.sin(a) * r, 1, '#ffffff', 0.6, 0.5, 4);
+        } else if (z.kind === 'fire') burst(z.x + Math.cos(a) * r, 0.1, z.z + Math.sin(a) * r, 3, Math.random() < 0.5 ? '#ff7a2a' : '#ffd25a', 1.2, 0.7, -2.5);
         else burst(z.x + Math.cos(a) * r, 0.4, z.z + Math.sin(a) * r, 1, '#7fe7c8', 0.4, 1.6, -0.4);
+      });
+      // Code walls scroll; colas spin until someone drinks them.
+      codeTex.offset.y = (time * 0.35) % 1;
+      walls.forEach((group, i) => {
+        const w = world.walls[i];
+        group.visible = !!w;
+        if (!w) return;
+        const fade = Math.min(1, w.life * 2);
+        group.position.set(w.x, (w.y + w.h) / 2, w.z);
+        group.rotation.y = Math.atan2(-w.uz, w.ux);
+        group.scale.set(w.half * 2, (w.h - w.y) * fade, 1);
+      });
+      cans.forEach((can, i) => {
+        const p = world.pickups[i];
+        can.visible = !!p;
+        if (!p) return;
+        can.position.set(p.x, p.y + 0.3 + Math.sin(time * 3 + i) * 0.06, p.z);
+        can.rotation.y = time * 2;
       });
       const ring = world.ring;
       ringWall.visible = !!ring;

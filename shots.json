@@ -1,4 +1,4 @@
-[ { "name": "1-play.jpg", "query": "?shot=play&team=atk&role=playboy&seed=6&t=121" },
+[ { "name": "1-play.jpg", "query": "?shot=play&team=atk&role=coder&seed=20&t=52.9" },
   { "name": "2-start.jpg", "query": "?shot=start&t=3" },
-  { "name": "3-plant.jpg", "query": "?shot=play&team=def&role=office&seed=30&t=117.5" },
+  { "name": "3-scope.jpg", "query": "?shot=play&team=atk&role=playboy&seed=17&t=84.8" },
   { "name": "4-buy.jpg", "query": "?shot=buy&team=atk&role=chef&seed=5" } ]
